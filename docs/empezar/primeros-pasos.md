@@ -1,10 +1,10 @@
 # Primeros pasos
 
-Cuatro formas de escribir HyperEZ y ver el resultado al momento. La más sencilla es la primera.
+Cuatro formas de escribir HyperEZ y ver el resultado al momento. Los programas son archivos de texto `.hez`: puedes escribirlos con el editor que quieras.
 
 ## 1. HyperEZ Editor (Windows)
 
-Se instala con HyperEZ y se abre al terminar la instalación (también está en el menú Inicio y en el escritorio).
+Es un complemento opcional del instalador. Si lo marcaste, está en el menú Inicio. Si prefieres otro editor, escribe un `.hez` con él y ejecútalo con doble clic o con `hyper archivo.hez`.
 
 1. Escribe tu programa (el editor trae uno de ejemplo).
 2. Pulsa **F5**: te pide dónde guardarlo (como `.hez`, en `Documentos\HyperEZ`) y lo ejecuta en una ventana nueva.
@@ -14,7 +14,7 @@ En *Archivo → Abrir ejemplo* están todos los ejemplos y en *Archivo → Nuevo
 
 ## 2. La consola interactiva
 
-Escribe `hyper` en una terminal (o abre *HyperEZ (consola interactiva)* en el menú Inicio, o *Abrir HyperEZ aquí* con clic derecho en una carpeta):
+Escribe `hyper` en una terminal (o *Abrir HyperEZ aquí* con clic derecho en una carpeta):
 
 ```text
 hz> 2 + 3

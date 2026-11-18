@@ -1,6 +1,3 @@
-// Lógica típica de un juego escrita en HyperEZ: entidades, bucle de juego con paso fijo,
-// colisiones, IA con máquina de estados, búsqueda de caminos, guardado y temporizadores.
-
 const MAPA = [
     "##########",
     "#P...#...#",
@@ -105,7 +102,6 @@ test("bucle de juego con paso fijo", () => {
     var acumulado = 0
     var pasos = 0
     const PASO = 1 / 60
-    // fotogramas irregulares: el paso fijo hace la simulación estable
     foreach dt in [0.016, 0.033, 0.017, 0.05, 0.001, 0.05] {
         acumulado += dt
         while acumulado >= PASO {
@@ -114,7 +110,7 @@ test("bucle de juego con paso fijo", () => {
             pasos += 1
         }
     }
-    assertEqual(pasos, 10) // 0.167 s de fotogramas = 10 pasos de 1/60 (sobra 0.0003 s para el siguiente)
+    assertEqual(pasos, 10)
     assertEqual(round(e.pos.x, 3), round(10 * PASO * 2, 3))
 })
 

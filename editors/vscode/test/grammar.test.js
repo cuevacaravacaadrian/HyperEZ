@@ -1,6 +1,3 @@
-// Prueba de la gramática: tokeniza código HyperEZ con el mismo motor que VS Code
-// (vscode-textmate + Oniguruma) y comprueba los ámbitos de los tokens clave.
-//   node test/grammar.test.js
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +19,6 @@ const registry = new vsctm.Registry({
   },
 });
 
-// [línea, texto del token, fragmento de ámbito que debe tener]
 const cases = [
   ['/// Documentación', ' Documentación', 'comment.line.triple-slash.documentation'],
   ['// comentario', ' comentario', 'comment.line.double-slash'],
@@ -82,6 +78,15 @@ const cases = [
   ['p **= 2', '**=', 'keyword.operator.assignment.compound'],
   ['var c = [x * 2 for x in lista if x > 0]', 'for', 'keyword.control'],
   ['var copia = {...base, b: 2}', '...', 'keyword.operator.range'],
+  ['fn doble(x: number): number {', 'fn', 'storage.type.function'],
+  ['fn doble(x: number): number {', 'doble', 'entity.name.function'],
+  ['async fn cargar() {', 'fn', 'storage.type.function'],
+  ['} elif nota > 5 {', 'elif', 'keyword.control.conditional'],
+  ['loop {', 'loop', 'keyword.control.loop'],
+  ['on pieza.tocada as e {', 'as', 'keyword.control.as'],
+  ['warn("cuidado")', 'warn', 'support.function.builtin'],
+  ['await delay(1, f)', 'delay', 'support.function.builtin'],
+  ['var t = tick()', 'tick', 'support.function.builtin'],
 ];
 
 (async () => {
@@ -98,7 +103,6 @@ const cases = [
       for (const t of found) console.log('    ' + JSON.stringify(t.text) + ' -> ' + t.scopes.slice(1).join(' '));
     }
   }
-  // Una línea con texto multilínea: el estado debe continuar a la siguiente
   const l1 = grammar.tokenizeLine('var t = """primera', vsctm.INITIAL);
   const l2 = grammar.tokenizeLine('segunda """ + x', l1.ruleStack);
   const seg = l2.tokens.find((t) => 'segunda """ + x'.substring(t.startIndex, t.endIndex).startsWith('segunda'));

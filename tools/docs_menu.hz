@@ -1,6 +1,3 @@
-// El menú de la documentación (grupos y páginas): lo comparten la documentación en HTML del instalador
-// (tools/docs_html.hz) y la web (projects/web/construir.hez). Las url son relativas a la carpeta docs.
-
 const MENU = [
     { grupo: "Empezar" },
     { titulo: "Inicio", url: "index.html" },
@@ -38,11 +35,12 @@ const MENU = [
     { titulo: "Validar datos", url: "biblioteca/validar.html" },
     { titulo: "Consola y juegos", url: "biblioteca/consola.html" },
     { titulo: "Sistemas operativos", url: "biblioteca/sistemas-operativos.html" },
+    { titulo: "LPO Engine", url: "biblioteca/lpo-engine.html" },
+    { titulo: "Referencia de LPO Engine", url: "biblioteca/lpo-engine-api.html" },
     { titulo: "Todas las funciones (API)", url: "biblioteca/API.html" },
     { grupo: "Herramientas" },
     { titulo: "Proyectos y carpetas", url: "herramientas/proyectos.html" },
     { titulo: "HyperEZ Editor", url: "herramientas/editor.html" },
-    { titulo: "Editor en el navegador", url: "herramientas/editor-web.html" },
     { titulo: "La orden hyper", url: "herramientas/cli.html" },
     { titulo: "Consola interactiva", url: "herramientas/consola-interactiva.html" },
     { titulo: "Visual Studio Code", url: "herramientas/vscode.html" },

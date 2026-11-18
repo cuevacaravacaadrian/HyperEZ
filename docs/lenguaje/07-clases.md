@@ -52,6 +52,30 @@ class Id {
 print(Id.nuevo(), Id.nuevo())
 ```
 
+### Eventos de cada objeto
+
+`event nombre(campos)` dentro de una clase da a **cada objeto** su propio evento. Se escucha con `on objeto.evento as e` y se lanza con `emit` (dentro de la clase, sin `this`):
+
+```hz
+class Boton {
+    var texto: text
+    event pulsado(veces: number)
+    private var veces = 0
+    constructor(texto: text) { this.texto = texto }
+    fn pulsar() {
+        veces++
+        emit pulsado(veces)
+    }
+}
+
+var aceptar = Boton("Aceptar")
+on aceptar.pulsado as e { print("${aceptar.texto} pulsado ${e.veces} veces") }
+aceptar.pulsar()
+aceptar.pulsar()
+```
+
+Con `static event` el evento es de la clase (`on Juego.update as e`). Para crear un evento suelto en tiempo de ejecución está `createEvent(nombre, campos)`.
+
 ### Visibilidad
 
 `private` delante de un campo o método lo oculta fuera de la clase (y fuera del archivo para declaraciones globales).

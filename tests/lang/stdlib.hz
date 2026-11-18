@@ -1,5 +1,3 @@
-// Biblioteca estándar: números, textos, listas, mapas, conjuntos, rangos, JSON, archivos y sistema.
-
 test("números y matemáticas", () => {
     assertEqual(abs(-3), 3)
     assertEqual(floor(2.7), 2)

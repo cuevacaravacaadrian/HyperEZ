@@ -13,7 +13,6 @@ import re
 import subprocess
 import sys
 
-# La consola de Windows (y la de GitHub Actions) puede no ser UTF-8: los ✓ y las tildes no deben romper el script
 for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
         _s.reconfigure(encoding="utf-8", errors="replace")
@@ -33,7 +32,6 @@ CATEGORIES = [
 
 
 def split_args(s):
-    """Divide los argumentos de una llamada C++ al nivel superior (respeta paréntesis y textos)."""
     args, depth, cur, i, quote = [], 0, "", 0, None
     while i < len(s):
         c = s[i]
@@ -68,7 +66,6 @@ def split_args(s):
 
 
 def readable(expr):
-    """Texto legible de una expresión C++: los literales tal cual y el resto como «…»."""
     parts = re.split(r'("(?:[^"\\]|\\.)*")', expr)
     out = ""
     for p in parts:
@@ -83,7 +80,7 @@ def readable(expr):
 def error_catalog():
     codes = {}
     for dirpath, dirnames, files in os.walk(os.path.join(ROOT, "src", "lang")):
-        dirnames.sort()  # el orden de os.walk depende del sistema: así sale igual en Windows, Linux y macOS
+        dirnames.sort()
         for f in sorted(files):
             if not f.endswith(".cpp"):
                 continue

@@ -1,34 +1,35 @@
 # Instalación
 
+Instalar HyperEZ no instala una aplicación: **registra el lenguaje en tu sistema**, igual que Python o Node. Después, tu sistema operativo sabe qué es un archivo `.hez`, la orden `hyper` funciona en cualquier terminal y tus editores de código colorean HyperEZ sin instalar extensiones.
+
 ## Windows
 
 1. Descarga `HyperEZ-Setup-<versión>.exe` de la [página de versiones](https://github.com/cuevacaravacaadrian/HyperEZ/releases/latest).
 2. Ejecútalo y pulsa **Instalar**. No necesita permisos de administrador. Si aparece "Windows protegió su PC" (el instalador no está firmado), pulsa *Más información → Ejecutar de todas formas*.
-3. Al terminar se abre **HyperEZ Editor** con un programa de ejemplo: pulsa **F5** y ya estás programando.
+3. Abre una terminal **nueva** y escribe `hyper`.
 
-![El instalador de HyperEZ](../img/instalador.png)
+Por defecto el instalador:
 
-El instalador tiene dos apartados: **Componentes** (el lenguaje, obligatorio; HyperEZ Editor y la extensión de VS Code, opcionales) e **Integración con Windows**. Por defecto:
+- copia el lenguaje en `%LOCALAPPDATA%\Programs\HyperEZ` (compilador, biblioteca estándar, servidor de lenguaje, ejemplos y documentación);
+- registra el lenguaje en Windows (`HKCU\Software\HyperEZ\Language`): nombre, versión, extensiones, tipo MIME y las órdenes para ejecutar, comprobar, dar formato y el servidor de lenguaje, para que cualquier herramienta pueda encontrarlas;
+- registra los archivos **`.hez` y `.hz`** como *Programa HyperEZ*: icono propio, tipo `text/x-hyperez`, se abren como texto en cualquier editor, Windows Search indexa su contenido y el menú contextual tiene *Ejecutar con HyperEZ* (doble clic), *Editar*, *Comprobar errores* y *Ejecutar y repetir al guardar*; en cualquier carpeta, *Nuevo → Programa HyperEZ* y *Abrir HyperEZ aquí*;
+- enseña HyperEZ a los editores que tengas (**Notepad++, Sublime Text, Vim y Neovim**): reconocen los `.hez` y los colorean sin extensiones ni pasos manuales;
+- si tienes **Visual Studio Code**, le añade el soporte completo (errores en vivo, autocompletado, F5);
+- añade `hyper` al `PATH`.
 
-- copia HyperEZ y **HyperEZ Editor** en `%LOCALAPPDATA%\Programs\HyperEZ`, con la documentación también en HTML;
-- hace que **todos los archivos `.hez` y `.hz`** se abran siempre con HyperEZ (con su icono): doble clic para ejecutar. Si antes habías elegido otro programa para ellos, deja de tener prioridad;
-- añade al menú contextual de los archivos: *Editar con HyperEZ Editor*, *Editar con Visual Studio Code* (si lo tienes), *Comprobar errores* y *Ejecutar y repetir al guardar*; en cualquier carpeta, *Nuevo → Programa HyperEZ* y *Abrir HyperEZ aquí* (consola interactiva);
-- crea la carpeta `Documentos\HyperEZ` para tus programas;
-- añade `hyper` al `PATH` (para usarlo en una terminal **nueva**: `hyper version`);
-- crea accesos en el menú Inicio (HyperEZ Editor, consola interactiva, terminal, ejemplos, guía, referencia de la API y desinstalar) y, si quieres, en el escritorio;
-- instala la extensión de VS Code si tienes VS Code.
+**HyperEZ Editor**, un editor sencillo para empezar, es un complemento opcional que viene desmarcado.
 
-Se desinstala desde *Configuración → Aplicaciones → HyperEZ* (o con el acceso del menú Inicio).
+Se desinstala desde *Configuración → Aplicaciones → HyperEZ*. La desinstalación quita también el registro del lenguaje y lo que se añadió a tus editores.
 
 ### Instalación silenciosa
 
 ```text
-HyperEZ-Setup-0.8.3.exe /S                  sin preguntas
-HyperEZ-Setup-0.8.3.exe /S /D=C:\HyperEZ    en otra carpeta
-HyperEZ-Setup-0.8.3.exe /S /OPENEDITOR      y abre el editor al terminar
+HyperEZ-Setup-1.0.0.exe /S                  sin preguntas
+HyperEZ-Setup-1.0.0.exe /S /D=C:\HyperEZ    en otra carpeta
+HyperEZ-Setup-1.0.0.exe /S /EDITOR          incluye HyperEZ Editor
 ```
 
-Opciones: `/NOASSOC` (no asociar archivos), `/NOPATH`, `/NOSHORTCUTS`, `/NODESKTOP`, `/NOVSCODE`, `/NOEDITOR` (solo el lenguaje), `/OPENEDITOR`.
+Opciones: `/NOASSOC` (no registrar los archivos), `/NOPATH`, `/NOEDITORS` (no tocar Notepad++, Sublime Text ni Vim), `/NOVSCODE`, `/EDITOR`.
 
 ## Linux y macOS
 
@@ -36,21 +37,23 @@ Opciones: `/NOASSOC` (no asociar archivos), `/NOPATH`, `/NOSHORTCUTS`, `/NODESKT
 2. Descomprímelo e instala para tu usuario (sin `sudo`):
 
 ```text
-tar xzf HyperEZ-0.8.3-linux-x64.tar.gz
-cd HyperEZ-0.8.3-linux-x64
+tar xzf HyperEZ-1.0.0-linux-x64.tar.gz
+cd HyperEZ-1.0.0-linux-x64
 sh install.sh
 ```
 
-Queda en `~/.local/bin/hyper`. En Linux, `install.sh` además asocia los `.hz` y `.hez` en el escritorio (tipo MIME `text/x-hyperez`) para abrirlos con doble clic. Para desinstalar: `sh install.sh --uninstall`.
+Queda en `~/.local/bin/hyper`. `install.sh` ejecuta `hyper register`, que en Linux registra el tipo MIME `text/x-hyperez` para `*.hez` y `*.hz` y, en Linux y macOS, enseña HyperEZ a **gedit, GNOME Text Editor, Kate, Vim, Neovim, nano y Sublime Text**. Para desinstalar: `sh install.sh --uninstall`.
 
-En cualquier sistema, `hyper register` asocia los archivos con el `hyper` que lo ejecuta y `hyper unregister` lo deshace.
+## Registrar el lenguaje a mano
 
-## La extensión de Visual Studio Code
+En cualquier sistema, `hyper register` registra el lenguaje con el `hyper` que lo ejecuta y configura los editores que encuentre; `hyper unregister` lo deshace. Si instalas un editor nuevo después de HyperEZ, vuelve a ejecutar `hyper register`.
 
-La instala el instalador de Windows. También se puede instalar a mano: en VS Code, *Extensiones → ⋯ → Instalar desde VSIX…* y elige `hyperez-<versión>.vsix`, o desde la terminal:
+## Visual Studio Code
+
+El instalador de Windows lo configura solo si VS Code ya está instalado. Si instalas VS Code después, añade el soporte desde *Extensiones → ⋯ → Instalar desde VSIX…* con `hyperez-<versión>.vsix`, o desde la terminal:
 
 ```text
-code --install-extension hyperez-0.8.3.vsix
+code --install-extension hyperez-1.0.0.vsix
 ```
 
 ## Desde el código fuente

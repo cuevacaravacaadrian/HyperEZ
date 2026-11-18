@@ -1,13 +1,4 @@
-﻿# Construye HyperEZ completo: hyper.exe, pruebas, extensión de VS Code e instalador.
-#
-#   ./build.ps1                 todo (hyper.exe optimizado con PGO)
-#   ./build.ps1 -NoPGO          sin optimización guiada por perfil (compila el doble de rápido)
-#   ./build.ps1 -SkipVsix       sin la extensión de VS Code (no necesita Node.js)
-#   ./build.ps1 -SkipTests      sin ejecutar las pruebas
-#   ./build.ps1 -VSCodeTests    además, pruebas de integración dentro de VS Code (descarga VS Code Insiders)
-#
-# Resultado en dist/: HyperEZ-Setup-<versión>.exe, hyperez-<versión>.vsix, hyper.exe y hyperez-editor.exe
-param(
+﻿param(
     [switch]$NoPGO,
     [switch]$SkipVsix,
     [switch]$SkipTests,
@@ -18,20 +9,17 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 Set-Location $root
 
-# MSYS2 UCRT64 (GCC + CMake + Ninja) por delante de otros compiladores del PATH
 $msys = if ($env:HYPEREZ_MSYS) { $env:HYPEREZ_MSYS } else { "C:\msys64\ucrt64\bin" }
 if (Test-Path $msys) { $env:PATH = "$msys;$env:PATH" }
 
 function Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
 function Run($exe, [string[]]$arguments) {
-    # Algunas herramientas escriben avisos en stderr: solo cuenta el código de salida.
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try { & $exe @arguments 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $prev }
     if ($LASTEXITCODE -ne 0) { throw "Falló: $exe $($arguments -join ' ') (código $LASTEXITCODE)" }
 }
 function Quiet($exe, [string[]]$arguments) {
-    # Ejecuta sin mostrar la salida (entrenamiento de PGO); los fallos no detienen la compilación.
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try { & $exe @arguments *> $null } finally { $ErrorActionPreference = $prev }
@@ -88,7 +76,7 @@ if (-not $SkipVsix) {
 }
 
 Step "Instalador"
-Run cmake @("-S", ".", "-B", $BuildDir)   # recoge el .vsix nuevo
+Run cmake @("-S", ".", "-B", $BuildDir)
 Run cmake @("--build", $BuildDir)
 
 Step "Copiando a dist/"

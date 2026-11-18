@@ -1,15 +1,3 @@
-// x86 — ensamblador mínimo de x86 en modo real (16 bits): el primer paso para crear sistemas operativos.
-//
-//   import x86
-//   var a = x86.Assembler(0x7C00)        // la BIOS carga el sector de arranque en 0x7C00
-//   a.label("fin").cli().hlt().jmp("fin")
-//   File.writeBytes("arranque.img", x86.bootSector(a))
-//   // pruébalo con:  qemu-system-x86_64 -drive format=raw,file=arranque.img
-//
-// Genera el código máquina byte a byte, con etiquetas y saltos que se resuelven al final.
-// Instrucciones: mov, xor, or, cmp, inc, dec, add, sub, push, pop, saltos (jmp, jz, jnz, je, jne,
-// jc, jnc, call, ret), int, lodsb, stosb, cli, sti, hlt, nop, y datos (db, dw).
-
 const REG8 = { al: 0, cl: 1, dl: 2, bl: 3, ah: 4, ch: 5, dh: 6, bh: 7 }
 const REG16 = { ax: 0, cx: 1, dx: 2, bx: 3, sp: 4, bp: 5, si: 6, di: 7 }
 const SEG = { es: 0, cs: 1, ss: 2, ds: 3 }
@@ -44,7 +32,6 @@ class Assembler {
         return this
     }
 
-    // ---- datos ----
     /// Bytes tal cual: números, textos (ASCII), listas o Bytes.
     function db(...datos: any): Assembler {
         foreach d in datos { code.push(d) }
@@ -69,7 +56,6 @@ class Assembler {
         return this
     }
 
-    // ---- movimientos ----
     function movReg8(registro: text, valor: number): Assembler { return db(0xB0 + reg8(registro), valor & 0xFF) }
     function movReg16(registro: text, valor: any): Assembler {
         code.push(0xB8 + reg16(registro))
@@ -83,7 +69,6 @@ class Assembler {
         return db(0x8E, 0xC0 | (s << 3) | reg16(registro))
     }
 
-    // ---- aritmética y lógica ----
     function xorReg16(a: text, b: text): Assembler { return db(0x31, 0xC0 | (reg16(b) << 3) | reg16(a)) }
     function orReg8(a: text, b: text): Assembler { return db(0x08, 0xC0 | (reg8(b) << 3) | reg8(a)) }
     function cmpAl(valor: number): Assembler { return db(0x3C, valor & 0xFF) }
@@ -100,7 +85,6 @@ class Assembler {
     function push16(registro: text): Assembler { return db(0x50 + reg16(registro)) }
     function pop16(registro: text): Assembler { return db(0x58 + reg16(registro)) }
 
-    // ---- saltos y llamadas (a etiquetas) ----
     function jmp(destino: text): Assembler { return rel(0xEB, destino, "rel8") }
     function jmpNear(destino: text): Assembler { return rel(0xE9, destino, "rel16") }
     function jz(destino: text): Assembler { return rel(0x74, destino, "rel8") }
@@ -112,7 +96,6 @@ class Assembler {
     function call(destino: text): Assembler { return rel(0xE8, destino, "rel16") }
     function ret(): Assembler { return db(0xC3) }
 
-    // ---- varias ----
     /// int n: llamada a la BIOS o al sistema (int 0x10 = vídeo, int 0x13 = disco, int 0x16 = teclado).
     function interrupt(n: number): Assembler { return db(0xCD, n & 0xFF) }
     function lodsb(): Assembler { return db(0xAC) }

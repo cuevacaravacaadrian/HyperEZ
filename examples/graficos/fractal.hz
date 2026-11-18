@@ -1,6 +1,3 @@
-// Gráficos: el conjunto de Mandelbrot dibujado píxel a píxel y guardado como PNG.
-// Uso:  hyper fractal.hz [archivo.png]   (sin archivo se guarda en la carpeta temporal)
-
 const ANCHO = 240
 const ALTO = 160
 const ITERACIONES = 40

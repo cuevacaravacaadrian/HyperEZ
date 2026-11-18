@@ -1,11 +1,3 @@
-# Instala HyperEZ (la orden hyper) en un runner de GitHub Actions: Windows, Linux o macOS.
-#
-#   steps:
-#     - uses: actions/checkout@v4
-#     - uses: cuevacaravacaadrian/HyperEZ/actions/setup-hyperez@main
-#       with:
-#         version: latest          # o una versión concreta: 0.8.1
-#     - run: hyper test
 name: Instalar HyperEZ
 description: Instala el lenguaje de programación HyperEZ (la orden hyper) en Windows, Linux o macOS.
 author: Adrián Cueva Caravaca
@@ -32,7 +24,6 @@ runs:
         set -euo pipefail
         repo="cuevacaravacaadrian/HyperEZ"
         if [ "$HZ_VERSION" = "latest" ] || [ -z "$HZ_VERSION" ]; then
-          # /releases/latest redirige a /releases/tag/vX.Y.Z
           url=$(curl -fsSLI --retry 3 -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest")
           tag="${url##*/}"
         else

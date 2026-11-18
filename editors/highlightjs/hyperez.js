@@ -1,10 +1,3 @@
-/*
- * HyperEZ para highlight.js (https://highlightjs.org): colorea código HyperEZ en páginas web.
- *   <script src="highlight.min.js"></script>
- *   <script src="hyperez.js"></script>
- *   <script>hljs.highlightAll()</script>      ...  <pre><code class="language-hz">print("hola")</code></pre>
- * Generado por tools/gen_editors.py
- */
 (function () {
   function hyperez(hljs) {
     const INTERP = { className: 'subst', begin: /\$\{/, end: /\}/, keywords: {} };
@@ -18,10 +11,10 @@
       ]
     };
     const KEYWORDS = {
-      keyword: "var let const function return if else for foreach in while repeat break continue class struct constructor this super extends implements interface enum import from as public private protected static new try catch finally throw async await match event on once emit step get set and or not is",
-      literal: "true false null",
-      type: "number int text bool list map set any void function Task Range Event",
-      built_in: "print println write input len typeof str toNumber toInt assert assertEqual assertThrows test exit range time wait spawn abs sqrt pow floor ceil round min max clamp random randomInt randomChoice randomSeed Console File System JSON Path Time Process Http Regex Bytes Hash Matrix Image Vec2 Vec3 Color Error"
+      keyword: "if else elif match for foreach in while repeat loop do break continue return await throw try catch finally step var let const function fn class struct interface enum event constructor import from as extends implements public private protected static async get set and or not is new on once emit priority",
+      literal: "true false null this super",
+      type: "number int float double text string char bool boolean list array map dict set any object void null function Function Task Promise Range Event Subscription",
+      built_in: "print println write input len typeof str toNumber toInt assert assertEqual assertThrows test exit range time now wait nextFrame spawn delay tick warn createEvent off abs sqrt pow floor ceil round sign min max clamp lerp sin cos tan asin acos atan atan2 hypot exp log log10 radians degrees random randomInt randomChoice randomSeed remap wrap approach smoothstep chance distance isNaN awaitAll awaitAny parseInt gcd lcm factorial isPrime primes divisors cbrt trunc fract sinh cosh tanh randomGaussian noise chr ord Console File System JSON Vec2 Vec3 Color Error EventData HyperCore HyperMath Process Path Time Bytes Hash Base64 Regex Http Matrix Image ProcessHandle"
     };
     INTERP.keywords = KEYWORDS;
     INTERP.contains = [STRING, hljs.C_NUMBER_MODE];
@@ -34,7 +27,7 @@
         hljs.C_LINE_COMMENT_MODE,
         hljs.C_BLOCK_COMMENT_MODE,
         STRING,
-        { className: 'number', begin: /\b(0[xX][0-9a-fA-F_]+|0[bB][01_]+|\d[\d_]*(\.\d[\d_]*)?([eE][+-]?\d+)?)\b/ },
+        { className: 'number', begin: /\b(0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\d[\d_]*(\.\d[\d_]*)?([eE][+-]?\d+)?)\b/ },
         { className: 'title.class', begin: /\b[A-Z][A-Za-z0-9_]*\b/ },
         { className: 'title.function', begin: /\b[a-z_][A-Za-z0-9_]*(?=\s*\()/ },
         { className: 'operator', begin: /\|>|=>|->|\.\.=?|\?\?|\?\./ }

@@ -1,24 +1,3 @@
-// HyperEZ nativo: compila el subconjunto "de sistema" de HyperEZ a código máquina x86-64, sin máquina virtual ni
-// sistema operativo debajo. Es lo que hace falta para escribir un kernel en HyperEZ (HyperEZX está hecho así).
-//
-//   hyper build kernel.hez -o BOOTX64.EFI            aplicación UEFI (PE32+), arranca desde un USB o una ISO
-//   hyper build kernel.hez -o kernel.bin --formato bin   binario plano independiente de la posición
-//
-// El subconjunto (docs/lenguaje/12-nativo.md):
-//   - todos los valores son enteros de 64 bits (las direcciones también); true = 1, false = 0, null = 0
-//   - funciones, variables y constantes globales y locales, if/else, while, for i in a..b [step s], repeat, break,
-//     continue, return, do/while, ternario, and/or/not y todos los operadores enteros y de bits
-//   - struct con campos de tamaño fijo (u8, i8, u16, i16, u32, i32, int/u64/i64, punteros a otros struct) y métodos;
-//     una variable de tipo struct guarda la dirección del struct: Ventana(dir) la convierte, sizeof(Ventana) su tamaño
-//   - enum: constantes enteras (Color.Rojo)
-//   - variables globales: var x = 5 (un entero), var buf = buffer(4096) (memoria a cero), var t = [1, 2, 3] (tabla de
-//     enteros de 64 bits), var s = "texto" (texto UTF-8 terminado en 0), u16("texto") (UTF-16, para UEFI),
-//     embed("archivo") (los bytes de un archivo) y embedSize("archivo")
-//   - funciones del procesador: peek8/16/32/64, peeks8/16/32, poke8/16/32/64, inb/inw/inl, outb/outw/outl, cli, sti,
-//     hlt, pause, rdtsc, cpuid, copy, copy32, fill8, fill32, udiv, umod, ult, callptr (llamadas a punteros a función,
-//     con la convención de Microsoft x64 que usa UEFI)
-//   - import "./otro.hez": une varios archivos en un mismo programa
-// La función main(imagen, sistema) es el punto de entrada (UEFI la llama con su ImageHandle y su SystemTable).
 #include "tools/tools.h"
 #include "lang/syntax/parser.h"
 #include "lang/sema/diagnostics.h"
@@ -60,18 +39,17 @@ class NativeCompiler {
 public:
     std::vector<std::unique_ptr<SourceFile>> files;
     std::map<std::string, StructInfo> structs;
-    std::map<std::string, FuncInfo> funcs;                  // "nombre" o "Struct.metodo"
+    std::map<std::string, FuncInfo> funcs;
     std::map<std::string, GlobalInfo> globals;
-    std::map<std::string, int64_t> consts;                  // constantes y enum ("Color.Rojo")
+    std::map<std::string, int64_t> consts;
     std::set<std::string> enums;
     std::vector<uint8_t> code, data;
     int bssSize = 0;
     std::vector<int> labels;
     std::vector<Fix> fixes;
-    std::map<std::string, int> strings, wides;              // literales ya guardados
-    std::map<std::string, std::pair<int, int>> embeds;      // ruta → (desplazamiento, tamaño)
+    std::map<std::string, int> strings, wides;
+    std::map<std::string, std::pair<int, int>> embeds;
 
-    // estado de la función que se compila
     std::string curFile, curOwner;
     std::vector<std::map<std::string, LocalInfo2>> scopes;
     int slots = 0, depth = 0, retLabel = -1;
@@ -79,7 +57,6 @@ public:
 
     [[noreturn]] void fail(SrcLoc loc, const std::string& msg) { throw CompileError{curFile, loc, msg}; }
 
-    // ------------------------------------------------------------------------------------------------ carga
     void load(const std::string& path, SrcLoc from = {}) {
         std::string abs = pathAbsolute(path);
         for (auto& f : files) if (f->path == abs) return;
@@ -109,7 +86,6 @@ public:
         curFile = saved;
     }
 
-    // ------------------------------------------------------------------------------------------------ declaraciones
     static int typeSize(const std::string& t) {
         if (t == "u8" || t == "i8" || t == "byte") return 1;
         if (t == "u16" || t == "i16" || t == "char16") return 2;
@@ -120,7 +96,6 @@ public:
     std::string structType(const TypeRef* t) { return t && structs.count(t->name) ? t->name : ""; }
 
     void declare() {
-        // 1. nombres de struct y enum (los campos pueden apuntar a otros struct)
         for (auto& f : files) {
             curFile = f->path;
             for (auto& s : f->body) {
@@ -140,7 +115,6 @@ public:
                 }
             }
         }
-        // 2. campos, métodos, funciones, constantes y variables globales
         for (auto& f : files) {
             curFile = f->path;
             for (auto& s : f->body) {
@@ -244,7 +218,6 @@ public:
         strings[s->parts[0].text] = off;
         return off;
     }
-    // u16("...") y embed("...")
     int constantData(CallExpr* c) {
         std::string fn = static_cast<IdentExpr*>(c->callee.get())->name;
         if (c->args.size() != 1 || c->args[0].value->kind != ExprKind::String || !static_cast<StringExpr*>(c->args[0].value.get())->isPlain())
@@ -255,7 +228,7 @@ public:
             if (it != wides.end()) return it->second;
             align(2);
             int off = (int)data.size();
-            for (size_t i = 0; i < text.size();) { // UTF-8 → UTF-16 (BMP)
+            for (size_t i = 0; i < text.size();) {
                 unsigned char ch = (unsigned char)text[i];
                 uint32_t cp; int n;
                 if (ch < 0x80) { cp = ch; n = 1; } else if ((ch >> 5) == 6) { cp = ch & 31; n = 2; } else if ((ch >> 4) == 14) { cp = ch & 15; n = 3; } else { cp = ch & 7; n = 4; }
@@ -283,10 +256,8 @@ public:
         return embeds[path] = {off, (int)bytes.size()};
     }
 
-    // ------------------------------------------------------------------------------------------------ constantes
     int64_t literal(NumberExpr* n) {
         if (!n->isInt) fail(n->loc, "HyperEZ nativo solo trabaja con números enteros");
-        // el valor exacto sale del texto (un double pierde precisión por encima de 2^53)
         std::string t;
         for (auto& f : files) if (f->path == curFile) t = f->text.substr((size_t)n->loc.offset, (size_t)n->loc.length);
         std::string clean;
@@ -363,7 +334,6 @@ public:
         return false;
     }
 
-    // ------------------------------------------------------------------------------------------------ emisión
     void b(std::initializer_list<int> bs) { for (int x : bs) code.push_back((uint8_t)x); }
     void d32(int64_t v) { for (int i = 0; i < 4; i++) code.push_back((uint8_t)(v >> (8 * i))); }
     void d64(int64_t v) { for (int i = 0; i < 8; i++) code.push_back((uint8_t)(v >> (8 * i))); }
@@ -378,9 +348,9 @@ public:
     void popRax() { b({0x58}); depth -= 8; }
     void popRdx() { b({0x5A}); depth -= 8; }
     void movRaxImm(int64_t v) {
-        if (v >= 0 && v <= 0xFFFFFFFFLL) { b({0xB8}); d32(v); }                 // mov eax, imm32 (borra la mitad alta)
-        else if (v >= INT32_MIN && v < 0) { b({0x48, 0xC7, 0xC0}); d32(v); }     // mov rax, simm32
-        else { b({0x48, 0xB8}); d64(v); }                                        // mov rax, imm64
+        if (v >= 0 && v <= 0xFFFFFFFFLL) { b({0xB8}); d32(v); }
+        else if (v >= INT32_MIN && v < 0) { b({0x48, 0xC7, 0xC0}); d32(v); }
+        else { b({0x48, 0xB8}); d64(v); }
     }
     void loadLocal(int off) { b({0x48, 0x8B, 0x85}); d32(off); }
     void storeLocal(int off) { b({0x48, 0x89, 0x85}); d32(off); }
@@ -391,7 +361,6 @@ public:
     void leaData(int off) { b({0x48, 0x8D, 0x05}); fix(Target::Data, off); }
     void leaFunc(const std::string& name) { b({0x48, 0x8D, 0x05}); fix(Target::Code, funcLabel(name)); }
     int funcLabel(const std::string& name) { auto& f = funcs[name]; if (f.label < 0) f.label = newLabel(); return f.label; }
-    // [rax] ← carga con el tamaño del campo
     void loadSized(int size, bool sign) {
         switch (size) {
             case 1: if (sign) b({0x48, 0x0F, 0xBE, 0x00}); else b({0x0F, 0xB6, 0x00}); break;
@@ -400,7 +369,6 @@ public:
             default: b({0x48, 0x8B, 0x00});
         }
     }
-    // [rax] ← rcx
     void storeSized(int size) {
         switch (size) {
             case 1: b({0x88, 0x08}); break;
@@ -411,9 +379,8 @@ public:
     }
     void addRaxImm(int v) { if (v) { b({0x48, 0x05}); d32(v); } }
     void testRax() { b({0x48, 0x85, 0xC0}); }
-    void setcc(int cc) { b({0x0F, cc, 0xC0, 0x0F, 0xB6, 0xC0}); } // setcc al; movzx eax, al
+    void setcc(int cc) { b({0x0F, cc, 0xC0, 0x0F, 0xB6, 0xC0}); }
 
-    // ------------------------------------------------------------------------------------------------ tipos
     std::string typeOf(Expr* e) {
         switch (e->kind) {
             case ExprKind::Ident: {
@@ -438,7 +405,7 @@ public:
                 auto* c = static_cast<CallExpr*>(e);
                 if (c->callee->kind == ExprKind::Ident) {
                     std::string n = static_cast<IdentExpr*>(c->callee.get())->name;
-                    if (structs.count(n) && !isShadowed(n)) return n;            // Ventana(direccion)
+                    if (structs.count(n) && !isShadowed(n)) return n;
                     auto f = funcs.find(n);
                     if (f != funcs.end() && !isShadowed(n)) return structType(f->second.decl->ret.get());
                 } else if (c->callee->kind == ExprKind::Member) {
@@ -454,13 +421,11 @@ public:
         }
     }
 
-    // ------------------------------------------------------------------------------------------------ expresiones
     const LocalInfo2* local(const std::string& n) {
         for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) { auto f = it->find(n); if (f != it->end()) return &f->second; }
         return nullptr;
     }
 
-    // El lugar al que se asigna: una local, una global o un campo (dirección en rax tras evalAddress)
     enum class PlaceKind { Local, Global, Field };
     struct Place { PlaceKind kind; int off = 0; const GlobalInfo* g = nullptr; const Field* f = nullptr; Expr* object = nullptr; bool thisField = false; };
     Place place(Expr* e) {
@@ -486,7 +451,6 @@ public:
         }
         fail(e->loc, "No se puede asignar a esto");
     }
-    // rax ← dirección del campo
     void fieldAddress(const Place& p) {
         if (p.thisField) loadLocal(-8); else expr(p.object);
         addRaxImm(p.f->offset);
@@ -499,7 +463,7 @@ public:
         }
     }
 
-    void binop(Tok op, SrcLoc loc) { // rax = rax op rcx
+    void binop(Tok op, SrcLoc loc) {
         switch (op) {
             case Tok::Plus: case Tok::PlusEq: b({0x48, 0x01, 0xC8}); break;
             case Tok::Minus: case Tok::MinusEq: b({0x48, 0x29, 0xC8}); break;
@@ -534,7 +498,7 @@ public:
                 if (local(id->name) || (!curOwner.empty() && structs[curOwner].field(id->name))) { loadPlace(place(e)); return; }
                 auto g = globals.find(id->name);
                 if (g != globals.end()) { if (g->second.address) leaGlobal(g->second); else loadGlobal(g->second); return; }
-                if (funcs.count(id->name)) { leaFunc(id->name); return; } // la dirección de la función
+                if (funcs.count(id->name)) { leaFunc(id->name); return; }
                 fail(e->loc, "No existe nada llamado '" + id->name + "'");
             }
             case ExprKind::Member: {
@@ -560,7 +524,7 @@ public:
                 auto* bn = static_cast<BinaryExpr*>(e);
                 expr(bn->left.get()); push();
                 expr(bn->right.get());
-                b({0x48, 0x89, 0xC1}); // mov rcx, rax
+                b({0x48, 0x89, 0xC1});
                 popRax();
                 binop(bn->op, e->loc);
                 return;
@@ -593,19 +557,19 @@ public:
                 if (p.kind == PlaceKind::Field) {
                     fieldAddress(p); push();
                     loadSized(p.f->size, p.f->sign);
-                    if (!id->prefix) { b({0x48, 0x89, 0xC2}); } // mov rdx, rax (valor anterior)
-                    b({0x48, 0x8D, 0x48, id->inc ? 0x01 : 0xFF}); // lea rcx, [rax±1]
-                    if (id->prefix) b({0x48, 0x89, 0xCA}); // mov rdx, rcx
+                    if (!id->prefix) { b({0x48, 0x89, 0xC2}); }
+                    b({0x48, 0x8D, 0x48, id->inc ? 0x01 : 0xFF});
+                    if (id->prefix) b({0x48, 0x89, 0xCA});
                     popRax(); storeSized(p.f->size);
-                    b({0x48, 0x89, 0xD0}); // mov rax, rdx
+                    b({0x48, 0x89, 0xD0});
                     return;
                 }
                 loadPlace(p);
-                b({0x48, 0x8D, 0x48, id->inc ? 0x01 : 0xFF}); // lea rcx, [rax±1]
-                if (id->prefix) b({0x48, 0x89, 0xC8}); // el resultado es el valor nuevo
-                b({0x48, 0x87, 0xC8}); // xchg rax, rcx (rax = nuevo para guardar, rcx = resultado)
+                b({0x48, 0x8D, 0x48, id->inc ? 0x01 : 0xFF});
+                if (id->prefix) b({0x48, 0x89, 0xC8});
+                b({0x48, 0x87, 0xC8});
                 if (p.kind == PlaceKind::Local) storeLocal(p.off); else storeGlobal(*p.g);
-                b({0x48, 0x89, 0xC8}); // mov rax, rcx
+                b({0x48, 0x89, 0xC8});
                 return;
             }
             case ExprKind::Call: call(static_cast<CallExpr*>(e)); return;
@@ -614,7 +578,7 @@ public:
         }
     }
 
-    void storePlace(const Place& p) { // guarda rax
+    void storePlace(const Place& p) {
         if (p.kind == PlaceKind::Local) storeLocal(p.off);
         else if (p.kind == PlaceKind::Global) storeGlobal(*p.g);
         else {
@@ -633,14 +597,14 @@ public:
         if (p.kind == PlaceKind::Field) {
             expr(a->value.get()); push();
             fieldAddress(p); push();
-            b({0x48, 0x8B, 0x04, 0x24});                  // mov rax, [rsp]  (dirección)
+            b({0x48, 0x8B, 0x04, 0x24});
             loadSized(p.f->size, p.f->sign);
-            b({0x48, 0x8B, 0x4C, 0x24, 0x08});            // mov rcx, [rsp+8] (valor)
+            b({0x48, 0x8B, 0x4C, 0x24, 0x08});
             binop(a->op, a->loc);
-            b({0x48, 0x89, 0xC1});                        // mov rcx, rax
+            b({0x48, 0x89, 0xC1});
             popRax();
             storeSized(p.f->size);
-            b({0x48, 0x83, 0xC4, 0x08}); depth -= 8;      // quita el valor de la pila
+            b({0x48, 0x83, 0xC4, 0x08}); depth -= 8;
             b({0x48, 0x89, 0xC8});
             return;
         }
@@ -651,16 +615,14 @@ public:
         storePlace(p);
     }
 
-    // ---- llamadas (convención Microsoft x64: rcx, rdx, r8, r9, 32 bytes de "shadow space", pila alineada a 16)
     void emitCall(int nargs, const std::function<void()>& callTarget, int extraPushed) {
-        // los nargs argumentos están en la pila (el primero, el más profundo); extraPushed = valores debajo de ellos
         int S = 32 + 8 * std::max(0, nargs - 4);
         if ((depth + S) % 16) S += 8;
         b({0x48, 0x81, 0xEC}); d32(S);
         auto argOff = [&](int i) { return S + 8 * (nargs - 1 - i); };
         for (int i = 4; i < nargs; i++) {
-            b({0x48, 0x8B, 0x84, 0x24}); d32(argOff(i));     // mov rax, [rsp+..]
-            b({0x48, 0x89, 0x84, 0x24}); d32(32 + 8 * (i - 4)); // mov [rsp+32+..], rax
+            b({0x48, 0x8B, 0x84, 0x24}); d32(argOff(i));
+            b({0x48, 0x89, 0x84, 0x24}); d32(32 + 8 * (i - 4));
         }
         static const int regs[4][3] = {{0x48, 0x8B, 0x8C}, {0x48, 0x8B, 0x94}, {0x4C, 0x8B, 0x84}, {0x4C, 0x8B, 0x8C}};
         for (int i = 0; i < std::min(nargs, 4); i++) { b({regs[i][0], regs[i][1], regs[i][2], 0x24}); d32(argOff(i)); }
@@ -677,7 +639,7 @@ public:
         all.insert(all.end(), args.begin(), args.end());
         if (given > expected) fail(loc, name + " recibe " + std::to_string(fd->params.size()) + " argumentos");
         for (auto* a : all) { expr(a); push(); }
-        for (size_t i = given; i < expected; i++) { // parámetros con valor por defecto
+        for (size_t i = given; i < expected; i++) {
             const Param& pm = fd->params[i - (receiver ? 1 : 0)];
             int64_t k = 0;
             if (!pm.def || !fold(pm.def.get(), k)) fail(loc, "Falta el argumento '" + pm.name + "' de " + name);
@@ -713,24 +675,24 @@ public:
         std::string n = static_cast<IdentExpr*>(c->callee.get())->name;
         bool shadow = isShadowed(n);
         if (!shadow && intrinsic(n, args, c)) return;
-        if (!shadow && structs.count(n)) { // Ventana(direccion): ver una dirección como un struct
+        if (!shadow && structs.count(n)) {
             if (args.size() != 1) fail(c->loc, n + "(direccion) recibe la dirección del struct");
             expr(args[0]);
             return;
         }
         if (!shadow && funcs.count(n) && funcs[n].owner.empty()) { callDirect(n, args, nullptr, c->loc); return; }
-        if (!shadow && !curOwner.empty() && structs[curOwner].methods.count(n)) { // otro método del mismo struct
+        if (!shadow && !curOwner.empty() && structs[curOwner].methods.count(n)) {
             ThisExpr self(c->loc);
             callDirect(curOwner + "." + n, args, &self, c->loc);
             return;
         }
-        if (local(n) || globals.count(n)) { // una variable con la dirección de una función
+        if (local(n) || globals.count(n)) {
             expr(c->callee.get()); push();
             for (auto* a : args) { expr(a); push(); }
             int na = (int)args.size();
             emitCall(na, [&] {
                 int S0 = 32 + 8 * std::max(0, na - 4); if ((depth + S0) % 16) S0 += 8;
-                b({0x48, 0x8B, 0x84, 0x24}); d32(S0 + 8 * na); // mov rax, [rsp + ...] (la función)
+                b({0x48, 0x8B, 0x84, 0x24}); d32(S0 + 8 * na);
                 b({0xFF, 0xD0});
             }, 1);
             return;
@@ -754,7 +716,7 @@ public:
             return true;
         }
         if (n == "inb" || n == "inw" || n == "inl") {
-            need(a, 1, n, loc); expr(a[0]); b({0x89, 0xC2}); // mov edx, eax
+            need(a, 1, n, loc); expr(a[0]); b({0x89, 0xC2});
             if (n == "inb") b({0xEC, 0x0F, 0xB6, 0xC0}); else if (n == "inw") b({0x66, 0xED, 0x0F, 0xB7, 0xC0}); else b({0xED});
             return true;
         }
@@ -771,8 +733,8 @@ public:
         if (n == "copy" || n == "copy32") {
             need(a, 3, n, loc);
             expr(a[0]); push(); expr(a[1]); push(); expr(a[2]);
-            b({0x48, 0x89, 0xC1}); popRdx(); popRax();          // rcx = n, rdx = origen, rax = destino
-            b({0x56, 0x57, 0x48, 0x89, 0xC7, 0x48, 0x89, 0xD6}); // push rsi; push rdi; mov rdi, rax; mov rsi, rdx
+            b({0x48, 0x89, 0xC1}); popRdx(); popRax();
+            b({0x56, 0x57, 0x48, 0x89, 0xC7, 0x48, 0x89, 0xD6});
             if (n == "copy") b({0xF3, 0xA4}); else b({0xF3, 0xA5});
             b({0x5F, 0x5E});
             return true;
@@ -780,8 +742,8 @@ public:
         if (n == "fill8" || n == "fill32") {
             need(a, 3, n, loc);
             expr(a[0]); push(); expr(a[1]); push(); expr(a[2]);
-            b({0x48, 0x89, 0xC1}); popRax(); popRdx();          // rcx = n, rax = valor, rdx = destino
-            b({0x57, 0x48, 0x89, 0xD7});                        // push rdi; mov rdi, rdx
+            b({0x48, 0x89, 0xC1}); popRax(); popRdx();
+            b({0x57, 0x48, 0x89, 0xD7});
             if (n == "fill8") b({0xF3, 0xAA}); else b({0xF3, 0xAB});
             b({0x5F});
             return true;
@@ -793,10 +755,10 @@ public:
             else { b({0x31, 0xD2, 0x48, 0xF7, 0xF1}); if (n == "umod") b({0x48, 0x89, 0xD0}); }
             return true;
         }
-        if (n == "cpuid") { // cpuid(hoja, subhoja, destino): eax, ebx, ecx y edx en 16 bytes
+        if (n == "cpuid") {
             need(a, 3, n, loc);
             expr(a[0]); push(); expr(a[1]); push(); expr(a[2]);
-            b({0x49, 0x89, 0xC0}); popRcx(); popRax();          // r8 = destino
+            b({0x49, 0x89, 0xC0}); popRcx(); popRax();
             b({0x53, 0x0F, 0xA2, 0x41, 0x89, 0x00, 0x41, 0x89, 0x58, 0x04, 0x41, 0x89, 0x48, 0x08, 0x41, 0x89, 0x50, 0x0C, 0x5B});
             return true;
         }
@@ -817,7 +779,6 @@ public:
         return false;
     }
 
-    // ------------------------------------------------------------------------------------------------ sentencias
     int newSlot() { slots++; return -8 * slots; }
     void stmt(Stmt* s) {
         switch (s->kind) {
@@ -870,9 +831,9 @@ public:
                 scopes.back()[f->var] = {iv, ""};
                 int inicio = newLabel(), sig = newLabel(), fin = newLabel();
                 place(inicio);
-                loadLocal(iv); b({0x48, 0x8B, 0x8D}); d32(fv); // mov rcx, [rbp+fin]
-                b({0x48, 0x39, 0xC8});                          // cmp rax, rcx
-                int cc = paso > 0 ? (f->inclusive ? 0x8F : 0x8D) : (f->inclusive ? 0x8C : 0x8E); // jg / jge / jl / jle → salir
+                loadLocal(iv); b({0x48, 0x8B, 0x8D}); d32(fv);
+                b({0x48, 0x39, 0xC8});
+                int cc = paso > 0 ? (f->inclusive ? 0x8F : 0x8D) : (f->inclusive ? 0x8C : 0x8E);
                 b({0x0F, cc}); fix(Target::Code, fin);
                 breakLabels.push_back(fin); continueLabels.push_back(sig);
                 stmt(f->body.get());
@@ -889,8 +850,8 @@ public:
                 expr(r->count.get()); int cv = newSlot(); storeLocal(cv);
                 int inicio = newLabel(), fin = newLabel();
                 place(inicio);
-                loadLocal(cv); testRax(); b({0x0F, 0x8E}); fix(Target::Code, fin); // jle fin
-                b({0x48, 0xFF, 0xC8}); storeLocal(cv);                            // dec rax
+                loadLocal(cv); testRax(); b({0x0F, 0x8E}); fix(Target::Code, fin);
+                b({0x48, 0xFF, 0xC8}); storeLocal(cv);
                 breakLabels.push_back(fin); continueLabels.push_back(inicio);
                 stmt(r->body.get());
                 breakLabels.pop_back(); continueLabels.pop_back();
@@ -921,7 +882,7 @@ public:
         slots = 0; depth = 0;
         breakLabels.clear(); continueLabels.clear();
         retLabel = newLabel();
-        b({0x55, 0x48, 0x89, 0xE5, 0x48, 0x81, 0xEC}); // push rbp; mov rbp, rsp; sub rsp, imm32
+        b({0x55, 0x48, 0x89, 0xE5, 0x48, 0x81, 0xEC});
         size_t frameAt = code.size();
         d32(0);
         std::vector<std::pair<std::string, std::string>> params;
@@ -941,7 +902,7 @@ public:
         else if (fd->exprBody) { expr(fd->exprBody.get()); jmp(retLabel); }
         movRaxImm(0);
         place(retLabel);
-        b({0xC9, 0xC3}); // leave; ret
+        b({0xC9, 0xC3});
         int frame = (slots * 8 + 15) & ~15;
         for (int i = 0; i < 4; i++) code[frameAt + i] = (uint8_t)(frame >> (8 * i));
         if (depth != 0) fail(fd->loc, "error interno del compilador nativo: la pila no cuadra");
@@ -949,14 +910,12 @@ public:
 
     void compileAll() {
         declare();
-        // main primero: así el binario plano empieza por el punto de entrada
         std::vector<std::string> order = {"main"};
         for (auto& [n, f] : funcs) if (n != "main") order.push_back(n);
         for (auto& n : order) function(n, funcs[n]);
         for (auto& [n, f] : funcs) if (f.label >= 0 && labels[(size_t)f.label] < 0) throw CompileError{f.file, f.decl->loc, "error interno: falta '" + n + "'"};
     }
 
-    // ------------------------------------------------------------------------------------------------ enlazar
     void link(int textRVA, int dataRVA, int bssRVA) {
         for (auto& f : fixes) {
             int target = f.kind == Target::Code ? textRVA + labels[(size_t)f.value] : f.kind == Target::Data ? dataRVA + f.value : bssRVA + f.value;
@@ -970,7 +929,6 @@ public:
     static void put64(std::vector<uint8_t>& v, size_t at, uint64_t x) { for (int i = 0; i < 8; i++) v[at + i] = (uint8_t)(x >> (8 * i)); }
     static uint32_t up(uint32_t x, uint32_t a) { return (x + a - 1) / a * a; }
 
-    // Aplicación UEFI: PE32+ con .text, .data (+ memoria a cero) y una .reloc vacía (el código no tiene direcciones absolutas)
     std::vector<uint8_t> pe() {
         if (data.empty()) data.resize(16, 0);
         const uint32_t SA = 0x1000, FA = 0x200, headers = 0x400;
@@ -999,7 +957,7 @@ public:
         put64(f, opt + 24, 0x10000000ULL);
         put32(f, opt + 32, SA); put32(f, opt + 36, FA);
         put32(f, opt + 56, imageSize); put32(f, opt + 60, headers);
-        put16(f, opt + 68, 10);          // EFI_APPLICATION
+        put16(f, opt + 68, 10);
         put64(f, opt + 72, 0x100000); put64(f, opt + 80, 0x1000); put64(f, opt + 88, 0x100000); put64(f, opt + 96, 0x1000);
         put32(f, opt + 108, 16);
         put32(f, opt + 112 + 5 * 8, relocRVA); put32(f, opt + 112 + 5 * 8 + 4, (uint32_t)reloc.size());
@@ -1018,7 +976,6 @@ public:
         return f;
     }
 
-    // Binario plano: código y datos seguidos (main al principio); la memoria a cero va detrás y la pone quien lo carga
     std::vector<uint8_t> flat() {
         uint32_t dataOff = up((uint32_t)code.size(), 16);
         uint32_t bssOff = up(dataOff + (uint32_t)data.size(), 16);
@@ -1030,7 +987,7 @@ public:
     }
 };
 
-} // namespace
+}
 
 int nativeBuild(const std::vector<std::string>& args) {
     std::string input, output, format = "uefi";
@@ -1076,4 +1033,4 @@ int nativeBuild(const std::vector<std::string>& args) {
     }
 }
 
-} // namespace hz
+}

@@ -1,0 +1,8 @@
+const DANIO_LAVA = 25
+const MONEDAS_POR_RECOGIDA = 5
+const VELOCIDAD_PUERTA = 0.3
+const COLOR_LAVA = Color(255, 80, 0)
+
+fn premio(racha: number): number {
+    return MONEDAS_POR_RECOGIDA * (1 + floor(racha / 3))
+}

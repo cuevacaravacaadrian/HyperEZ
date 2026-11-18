@@ -1,9 +1,3 @@
-// csv — leer y escribir tablas en formato CSV (valores separados por comas), como las de Excel.
-//
-//   import csv
-//   var filas = csv.read("ventas.csv")        // lista de mapas, con la primera fila como cabecera
-//   csv.write("resumen.csv", [{producto: "pan", total: 3}])
-
 /// Divide una línea CSV en campos (respeta comillas: "a, b" es un solo campo).
 function parseLine(linea: text, separador: text = ","): list {
     var campos = []

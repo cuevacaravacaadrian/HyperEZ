@@ -1,10 +1,7 @@
-// Una red neuronal aprende la operación XOR y luego a distinguir dos tipos de puntos.
-// Todo el cálculo pesado lo hace Matrix (en C++); la red está escrita en HyperEZ (biblioteca ai).
 import ai
 
-randomSeed(2026) // misma semilla = mismos resultados cada vez
+randomSeed(2026)
 
-// ---- 1. XOR: la salida es 1 solo si las dos entradas son distintas ----
 print("1) Aprender XOR")
 var entradas = [[0, 0], [0, 1], [1, 0], [1, 1]]
 var esperado = [[0], [1], [1], [0]]
@@ -17,7 +14,6 @@ foreach e in entradas {
     print("    ${e[0]} XOR ${e[1]} = ${round(p, 3)}  ->  ${p >= 0.5 ? 1 : 0}")
 }
 
-// ---- 2. Clasificar puntos: ¿está dentro o fuera del círculo de radio 0.5? ----
 print()
 print("2) Dentro o fuera de un círculo")
 var puntos = []
@@ -35,7 +31,6 @@ clasificador.train(entrenar, ai.oneHot(clasesEntrenar, 2), 400, 0.3, 32)
 var acierto = ai.accuracy(clasificador.classify(probar), clasesProbar)
 print("    aciertos con puntos nuevos: ${round(acierto * 100)} %")
 
-// Dibuja lo que ha aprendido la red: # dentro, . fuera
 for fila in 0..11 {
     var linea = "    "
     for col in 0..23 {

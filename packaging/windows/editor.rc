@@ -1,10 +1,8 @@
-// Recursos de hyperez-editor.exe: iconos, manifiesto e información de versión.
 #include <winver.h>
 #include "../../src/core/version.h"
 
 1 ICON "../../assets/icons/hyperez.ico"
 2 ICON "../../assets/icons/hz-file.ico"
-// Iconos del Explorador (assets/icons/tema): carpetas 100-119, archivos 130-140
 100 ICON "../../assets/icons/tema/carpeta.ico"
 101 ICON "../../assets/icons/tema/carpeta-abierta.ico"
 102 ICON "../../assets/icons/tema/hypersettings.ico"

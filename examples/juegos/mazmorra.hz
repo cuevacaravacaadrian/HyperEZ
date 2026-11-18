@@ -1,8 +1,3 @@
-// Mazmorra — combate por turnos. Tu héroe recorre tres salas llenas de monstruos.
-// Controles: 1 atacar, 2 bola de fuego, 3 poción, 4 huir.
-//
-// Sin consola interactiva, el héroe decide solo y la partida usa una semilla fija.
-
 const DEMO = not Console.interactive
 
 enum Accion { Atacar, Magia, Curarse, Huir }

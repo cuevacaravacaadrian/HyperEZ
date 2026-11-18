@@ -1,9 +1,3 @@
-// Tipos de proyecto de 'hyper new': cada uno con las carpetas de HyperEZ (docs/herramientas/proyectos.md)
-//   main.hez          punto de entrada
-//   hypersettings/    proyecto.json: nombre, versión, programa principal...
-//   hypercode/        módulos del proyecto (se importan por su nombre: from tablero import ...)
-//   hypertests/       pruebas (hyper test)
-//   hyperdata/        archivos que usa el programa (solo si hacen falta)
 #include "tools/tools.h"
 
 namespace hz {
@@ -31,8 +25,6 @@ static std::string readme(const std::string& title, const std::string& what, con
            "HyperEZ como lenguaje.\n";
 }
 
-// ---- juego -----------------------------------------------------------------
-
 static std::vector<ProjectFile> gameProject(const std::string& title) {
     std::string main = projectTemplateMain(title);
     std::string test = projectTemplateTest();
@@ -49,8 +41,6 @@ static std::vector<ProjectFile> gameProject(const std::string& title) {
         {"README.md", readme(title, "Un juego de consola: lleva al héroe hasta el tesoro esquivando las trampas.", "")},
     };
 }
-
-// ---- aplicación de consola -------------------------------------------------
 
 static std::vector<ProjectFile> appProject(const std::string& title) {
     return {
@@ -151,8 +141,6 @@ test("añadir, completar y limpiar", () => {
     };
 }
 
-// ---- inteligencia artificial ----------------------------------------------
-
 static std::vector<ProjectFile> aiProject(const std::string& title) {
     return {
         {"main.hez", "// " + title + R"HZ( — inteligencia artificial: una red neuronal aprende a clasificar flores.
@@ -217,8 +205,6 @@ test("los datos se cargan y se escalan", () => {
     };
 }
 
-// ---- herramienta de línea de órdenes ---------------------------------------
-
 static std::vector<ProjectFile> scriptProject(const std::string& title) {
     return {
         {"main.hez", "// " + title + R"HZ( — herramienta de línea de órdenes.
@@ -259,8 +245,6 @@ test("cuenta las líneas de cada archivo", () => {
         {"README.md", readme(title, "Herramienta de línea de órdenes que cuenta las líneas de los archivos de una carpeta.", "")},
     };
 }
-
-// ---- aplicación web --------------------------------------------------------
 
 static std::vector<ProjectFile> webProject(const std::string& title) {
     return {
@@ -369,8 +353,6 @@ test("el formulario guarda el mensaje y la API lo devuelve", () => {
     };
 }
 
-// ---- sitio web estático ----------------------------------------------------
-
 static std::vector<ProjectFile> siteProject(const std::string& title) {
     return {
         {"main.hez", "// " + title + R"HZ( — sitio web hecho con Markdown: cada archivo de contenido/ es una página.
@@ -443,13 +425,11 @@ std::vector<ProjectFile> projectFiles(const std::string& kind, const std::string
     bool hasIgnore = false;
     for (auto& f : files) if (f.path == ".gitignore") { f.content = "*.tmp\nhyperbuild/\n" + f.content; hasIgnore = true; }
     if (!hasIgnore) files.push_back({".gitignore", "*.tmp\nhyperbuild/\n"});
-    // hypersettings/proyecto.json: lo leen hyper run, hyper test y los editores
     std::string nombre;
     for (char c : title) nombre += c == '"' || c == '\\' ? '_' : c;
     files.push_back({"hypersettings/proyecto.json", "{\n  \"nombre\": \"" + nombre + "\",\n  \"version\": \"0.1.0\",\n"
                      "  \"descripcion\": \"\",\n  \"autor\": \"\",\n  \"principal\": \"main.hez\",\n  \"tipo\": \"" + kind + "\",\n"
                      "  \"hyperez\": \"" HYPEREZ_VERSION "\"\n}\n"});
-    // Pruebas en GitHub Actions con la acción setup-hyperez del repositorio de HyperEZ
     files.push_back({".github/workflows/pruebas.yml", R"YML(# Pruebas en GitHub: con cada cambio que subes, GitHub instala HyperEZ y ejecuta las pruebas.
 name: Pruebas
 
@@ -471,4 +451,4 @@ jobs:
     return files;
 }
 
-} // namespace hz
+}

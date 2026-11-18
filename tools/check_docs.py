@@ -11,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 
-# La consola de Windows (y la de GitHub Actions) puede no ser UTF-8: los ✓ y las tildes no deben romper el script
 for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
         _s.reconfigure(encoding="utf-8", errors="replace")
@@ -38,7 +37,6 @@ def main():
                 src = os.path.join(tmp, "bloque_%d.hz" % total)
                 with open(src, "w", encoding="utf-8") as out:
                     out.write(code)
-                # HyperEZ nativo (un main(imagen, sistema)): se compila a código máquina con hyper build
                 nativo = re.search(r"^function main\(imagen", code, re.M) is not None
                 orden = [hyper, "build", src, "-o", src + ".efi"] if nativo else [hyper, "run", src]
                 r = subprocess.run(orden, capture_output=True, text=True, encoding="utf-8",

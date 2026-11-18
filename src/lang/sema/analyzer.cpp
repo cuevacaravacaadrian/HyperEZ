@@ -6,10 +6,6 @@
 
 namespace hz {
 
-// ---------------------------------------------------------------------------
-// Tipos
-// ---------------------------------------------------------------------------
-
 static TypeP mk(TK k) { auto t = std::make_shared<Type>(); t->kind = k; return t; }
 TypeP tAny() { static TypeP t = mk(TK::Any); return t; }
 TypeP tVoid() { static TypeP t = mk(TK::Void); return t; }
@@ -51,7 +47,6 @@ std::string sigStr(const FuncSig& s, const std::string& name) {
     return r;
 }
 
-// Firma de un constructor: sin el tipo de retorno.
 static std::string ctorStr(const FuncSig& s, const std::string& name) {
     FuncSig copy = s;
     copy.ret = nullptr;
@@ -131,7 +126,6 @@ static TypeP parseTypeImpl(VM& vm, std::string_view s, size_t& i) {
     auto skip = [&] { while (i < s.size() && s[i] == ' ') i++; };
     skip();
     if (i < s.size() && s[i] == '(') {
-        // tipo función (a) => b : se trata como function
         int depth = 0;
         while (i < s.size()) { if (s[i] == '(') depth++; if (s[i] == ')') { depth--; if (depth == 0) { i++; break; } } i++; }
         skip();
@@ -180,7 +174,7 @@ static bool assignable(const TypeP& to, const TypeP& from) {
         case TK::EnumValue: return from->kind == TK::EnumValue && (!to->en || !from->en || to->en == from->en);
         case TK::Instance:
             if (!to->cls) return true;
-            if (to->cls->name == "Color" && from->kind == TK::Text) return true; // "red", "#ff0000"
+            if (to->cls->name == "Color" && from->kind == TK::Text) return true;
             if (from->kind == TK::Instance && from->cls) return from->cls->isSubclassOf(to->cls);
             return false;
         case TK::Class: case TK::Enum: case TK::Module: return from->kind == to->kind;
@@ -188,10 +182,6 @@ static bool assignable(const TypeP& to, const TypeP& from) {
         default: return true;
     }
 }
-
-// ---------------------------------------------------------------------------
-// Mundo (API nativa)
-// ---------------------------------------------------------------------------
 
 static std::unordered_map<VM*, std::unique_ptr<World>>& worldTable() {
     static std::unordered_map<VM*, std::unique_ptr<World>> worlds;
@@ -231,7 +221,6 @@ void buildWorld(VM& vm) {
         w.symbols.push_back(std::move(s));
         return r;
     };
-    // 1) Clases y módulos (para que los tipos se puedan resolver)
     for (auto& e : vm.catalog) {
         if (e.kind == ApiKind::Class && !w.nativeClasses.count(e.name)) {
             auto c = std::make_unique<ClassInfo>();
@@ -244,7 +233,6 @@ void buildWorld(VM& vm) {
             w.nativeModules[e.name] = std::move(m);
         }
     }
-    // 2) Miembros
     for (auto& e : vm.catalog) {
         ClassInfo* cls = nullptr;
         ModuleInfo* mod = nullptr;
@@ -332,7 +320,6 @@ void buildWorld(VM& vm) {
             w.builtinSyms[e.name] = m.sym;
         }
     }
-    // 3) Bibliotecas oficiales (HyperAudio...) como alias de módulos
     for (auto& [lib, members] : vm.libraryMembers) {
         if (members.size() == 1 && w.nativeModules.count(members[0])) {
             w.builtinTypes["@lib:" + lib] = tModule(w.nativeModules[members[0]].get());
@@ -355,10 +342,6 @@ void buildWorld(VM& vm) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Unidad
-// ---------------------------------------------------------------------------
-
 Symbol* ModuleUnit::newSymbol(const std::string& n, SymKind k, SrcLoc loc) {
     auto s = std::make_unique<Symbol>();
     s->name = n; s->kind = k; s->loc = loc; s->file = path;
@@ -373,15 +356,11 @@ void Analyzer::addRef(SrcLoc loc, Symbol* sym, bool isDecl) {
     if (sym && loc.line > 0) unit.refs.push_back({loc, sym, isDecl});
 }
 
-// ---------------------------------------------------------------------------
-// Ámbitos y resolución
-// ---------------------------------------------------------------------------
-
 void Analyzer::beginScope(int startOffset) {
     fn->scopeDepth++;
     unit.scopes.push_back({});
     unit.scopes.back().start = startOffset;
-    scopeStack.push_back(nullptr); // el puntero se resuelve por índice al cerrar
+    scopeStack.push_back(nullptr);
     scopeStack.back() = reinterpret_cast<ScopeRecord*>(unit.scopes.size() - 1);
 }
 
@@ -477,7 +456,6 @@ bool Analyzer::resolveThis(Resolution& res) {
 
 bool Analyzer::resolveName(const std::string& name, SrcLoc loc, Resolution& res, Symbol*& sym, TypeP& type, bool forWrite) {
     (void)forWrite;
-    // 1) local
     int l = resolveLocal(fn, name);
     if (l >= 0) {
         auto& lv = fn->locals[l];
@@ -485,24 +463,20 @@ bool Analyzer::resolveName(const std::string& name, SrcLoc loc, Resolution& res,
         sym = lv.sym; type = lv.type;
         return true;
     }
-    // 2) upvalue
     int u = resolveUpvalue(fn, name);
     if (u >= 0) {
         res.kind = VarKind::Upvalue; res.index = u;
-        // Buscar el símbolo en los contextos exteriores
         for (FnCtx* f = fn->enclosing; f; f = f->enclosing) {
             int k = resolveLocal(f, name);
             if (k >= 0) { sym = f->locals[k].sym; type = f->locals[k].type; break; }
         }
         return true;
     }
-    // 3) miembro implícito de la clase (this.x / Clase.x)
     if (currentClass) {
         if (const MemberInfo* m = currentClass->find(name)) {
             sym = m->sym; type = m->type;
             if (m->kind == MemberInfo::Getter || m->kind == MemberInfo::Setter || m->kind == MemberInfo::Field) type = m->type;
             if (m->isStatic) {
-                // Cargar la clase dueña por su nombre global
                 const ClassInfo* owner = currentClass;
                 for (auto* c = currentClass; c; c = c->super) if (c->members.count(name)) { owner = c; break; }
                 Resolution cr; Symbol* cs = nullptr; TypeP ct;
@@ -532,7 +506,6 @@ bool Analyzer::resolveName(const std::string& name, SrcLoc loc, Resolution& res,
             }
         }
     }
-    // 4) global del módulo
     auto g = unit.globalIndex.find(name);
     if (g != unit.globalIndex.end()) {
         res.kind = VarKind::Global; res.index = g->second;
@@ -540,7 +513,6 @@ bool Analyzer::resolveName(const std::string& name, SrcLoc loc, Resolution& res,
         sym = gs != unit.globalSyms.end() ? gs->second : nullptr;
         auto gt = unit.globalTypes.find(name);
         type = gt != unit.globalTypes.end() ? gt->second : tAny();
-        // ¿Uso en el nivel superior antes de la declaración?
         if (fn->isScript && sym && (sym->kind == SymKind::Variable || sym->kind == SymKind::Constant) &&
             sym->loc.offset > loc.offset && !forWrite) {
             diags.error(loc, "La variable '" + name + "' se usa antes de declararla (línea " + std::to_string(sym->loc.line) + ")",
@@ -548,7 +520,6 @@ bool Analyzer::resolveName(const std::string& name, SrcLoc loc, Resolution& res,
         }
         return true;
     }
-    // 5) integrado
     auto b = vm.builtinIndex.find(name);
     if (b != vm.builtinIndex.end()) {
         res.kind = VarKind::Builtin; res.index = b->second;
@@ -573,10 +544,6 @@ std::vector<std::string> Analyzer::visibleNames() {
     return names;
 }
 
-// ---------------------------------------------------------------------------
-// Declaraciones globales
-// ---------------------------------------------------------------------------
-
 int Analyzer::declareGlobal(const std::string& name, SrcLoc loc, SymKind kind, TypeP type, const std::string& doc) {
     if (unit.globalIndex.count(name)) {
         auto* prev = unit.globalSyms[name];
@@ -586,7 +553,6 @@ int Analyzer::declareGlobal(const std::string& name, SrcLoc loc, SymKind kind, T
     }
     int idx = -1;
     if (unit.repl) {
-        // consola interactiva: un global de una entrada anterior conserva su índice
         auto& prev = unit.repl->globals;
         auto it = std::find(prev.begin(), prev.end(), name);
         if (it != prev.end()) idx = (int)(it - prev.begin());
@@ -616,7 +582,6 @@ TypeP Analyzer::resolveTypeRef(TypeRef* t) {
                                                "Promise", "Future", "function", "Function", "Range", "Subscription", "Event", "object"};
     if (prim.count(n)) r = namedType(vm, n, args);
     else {
-        // Clase/enum/interfaz del módulo, del preludio o nativa
         auto g = unit.globalTypes.find(n);
         if (g != unit.globalTypes.end() && (g->second->kind == TK::Class || g->second->kind == TK::Enum)) {
             r = g->second->kind == TK::Class ? tInstance(g->second->cls) : tEnumVal(g->second->en);
@@ -627,7 +592,6 @@ TypeP Analyzer::resolveTypeRef(TypeRef* t) {
         } else if (world.preludeEnums.count(n)) {
             r = tEnumVal(world.preludeEnums[n]);
         } else if (n.find('.') != std::string::npos) {
-            // Módulo.Tipo
             std::string modName = n.substr(0, n.find('.'));
             std::string rest = n.substr(n.find('.') + 1);
             auto g2 = unit.globalTypes.find(modName);
@@ -662,7 +626,6 @@ std::shared_ptr<FuncSig> Analyzer::sigOf(FuncDecl* f) {
         sp.optional = p.def != nullptr;
         sp.rest = p.rest;
         if (p.def) {
-            // Texto corto del valor por defecto para la firma
             switch (p.def->kind) {
                 case ExprKind::Number: sp.def = formatNumber(static_cast<NumberExpr*>(p.def.get())->value); break;
                 case ExprKind::String: { auto* se = static_cast<StringExpr*>(p.def.get()); sp.def = se->isPlain() ? escapeString(se->parts[0].text) : "\"...\""; break; }
@@ -714,7 +677,7 @@ void Analyzer::linkClass(ClassStmt* c) {
             diags.error(c->superLoc, "La clase base '" + c->superName + "' no existe", "", "E0501");
         } else if (st->cls->isInterface) {
             diags.error(c->superLoc, "'" + c->superName + "' es una interfaz: usa 'implements', no 'extends'", "", "E0502");
-        } else if (st->cls->isNative && st->cls->name != "Error") { // de Error sí se puede heredar (errores propios)
+        } else if (st->cls->isNative && st->cls->name != "Error") {
             diags.error(c->superLoc, "No se puede heredar de la clase integrada '" + c->superName + "'", "", "E0503");
         } else {
             for (auto* k = st->cls; k; k = k->super)
@@ -741,7 +704,6 @@ void Analyzer::linkClass(ClassStmt* c) {
 
 void Analyzer::declareGlobals() {
     auto& body = unit.program->body;
-    // Imports primero (pueden aportar clases base)
     for (auto& sp : body) {
         if (sp->kind != StmtKind::Import) continue;
         auto* s = static_cast<ImportStmt*>(sp.get());
@@ -768,7 +730,32 @@ void Analyzer::declareGlobals() {
                 modType = tModule(imp->info.get());
             }
         }
-        if (s->names.empty()) {
+        if (s->importAll) {
+            std::set<std::string> own;
+            for (auto& d : body) {
+                switch (d->kind) {
+                    case StmtKind::Var: own.insert(static_cast<VarStmt*>(d.get())->name); break;
+                    case StmtKind::Function: own.insert(static_cast<FuncStmt*>(d.get())->fn->name); break;
+                    case StmtKind::Class: own.insert(static_cast<ClassStmt*>(d.get())->name); break;
+                    case StmtKind::Interface: own.insert(static_cast<InterfaceStmt*>(d.get())->name); break;
+                    case StmtKind::Enum: own.insert(static_cast<EnumStmt*>(d.get())->name); break;
+                    case StmtKind::Event: own.insert(static_cast<EventStmt*>(d.get())->name); break;
+                    default: break;
+                }
+            }
+            if (modType->mod) {
+                for (auto& [n, m] : modType->mod->members) {
+                    if (own.count(n) || unit.globalSyms.count(n)) continue;
+                    s->names.push_back({n, s->loc});
+                    s->nameAliases.push_back(n);
+                }
+            } else if (isKnown(modType)) {
+                diags.error(s->loc, "'from " + s->path + " import *' solo funciona con módulos y bibliotecas escritos en HyperEZ", "importa los nombres uno a uno", "E0207");
+            }
+            s->nameRes.resize(s->names.size());
+            s->nameSyms.resize(s->names.size(), nullptr);
+        }
+        if (s->names.empty() && !s->importAll) {
             std::string bind = s->alias;
             if (bind.empty()) {
                 bind = s->path;
@@ -781,7 +768,7 @@ void Analyzer::declareGlobals() {
             s->sym->detail = "import " + s->path + (s->alias.empty() ? "" : " as " + s->alias);
             if (modType->mod) s->sym->doc = modType->mod->doc;
             modSym = s->sym;
-            modSym->used = true; // los imports sin usar no son un error
+            modSym->used = true;
         } else {
             for (size_t i = 0; i < s->names.size(); i++) {
                 TypeP mt = tAny();
@@ -801,7 +788,6 @@ void Analyzer::declareGlobals() {
             }
         }
     }
-    // Clases, interfaces, enums, eventos (nombres)
     for (auto& sp : body) {
         switch (sp->kind) {
             case StmtKind::Class: buildClass(static_cast<ClassStmt*>(sp.get())); break;
@@ -845,7 +831,6 @@ void Analyzer::declareGlobals() {
             default: break;
         }
     }
-    // Enlazar herencia de clases y construir interfaces
     for (auto& sp : body) {
         if (sp->kind == StmtKind::Interface) {
             auto* s = static_cast<InterfaceStmt*>(sp.get());
@@ -872,7 +857,6 @@ void Analyzer::declareGlobals() {
         }
     }
     for (auto& sp : body) if (sp->kind == StmtKind::Class) linkClass(static_cast<ClassStmt*>(sp.get()));
-    // Eventos
     for (auto& sp : body) {
         if (sp->kind != StmtKind::Event) continue;
         auto* s = static_cast<EventStmt*>(sp.get());
@@ -890,7 +874,6 @@ void Analyzer::declareGlobals() {
         ei->sym = s->sym;
         unit.events.push_back(std::move(ei));
     }
-    // Miembros de clases
     for (auto& sp : body) {
         if (sp->kind != StmtKind::Class) continue;
         auto* c = static_cast<ClassStmt*>(sp.get());
@@ -967,7 +950,6 @@ void Analyzer::declareGlobals() {
         }
         if (ci->super) c->sym->detail += " extends " + ci->super->name;
     }
-    // Comprobar interfaces
     for (auto& sp : body) {
         if (sp->kind != StmtKind::Class) continue;
         auto* c = static_cast<ClassStmt*>(sp.get());
@@ -985,7 +967,6 @@ void Analyzer::declareGlobals() {
             }
         }
     }
-    // Funciones, variables y el resto
     for (auto& sp : body) {
         switch (sp->kind) {
             case StmtKind::Function: {
@@ -1014,10 +995,6 @@ void Analyzer::declareGlobals() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Recorrido
-// ---------------------------------------------------------------------------
-
 void Analyzer::run() {
     Program& prog = *unit.program;
     prog.script = std::make_unique<FuncDecl>();
@@ -1040,13 +1017,11 @@ void Analyzer::run() {
     prog.script->maxSlots = script.maxSlots;
     prog.globalCount = (int)unit.globalNames.size();
     prog.globalNames = unit.globalNames;
-    // Globales sin usar (solo funciones/vars privadas)
     for (auto& [n, s] : unit.globalSyms) {
         if (s && !s->used && s->vis == Visibility::Private && (s->kind == SymKind::Variable || s->kind == SymKind::Function))
             diags.hintUnused(s->loc, "'" + n + "' es privado y no se usa");
     }
     for (auto& [n, s] : unit.globalSyms) unit.scopes[0].symbols.push_back(s);
-    // Vista exportada del módulo
     unit.info = std::make_unique<ModuleInfo>();
     unit.info->name = unit.name;
     unit.info->unit = &unit;
@@ -1406,7 +1381,6 @@ void Analyzer::stmt(Stmt* s) {
             auto* c = static_cast<ClassStmt*>(s);
             if (!(fn->isScript && fn->scopeDepth == 0)) { diags.error(s->loc, "Las clases solo pueden declararse en el nivel superior del archivo", "", "E0508"); break; }
             ClassInfo* ci = c->info;
-            // Inicializadores estáticos (en el contexto del script)
             ClassInfo* saved = currentClass;
             currentClass = ci;
             for (auto& f : c->fields) {
@@ -1415,7 +1389,6 @@ void Analyzer::stmt(Stmt* s) {
                 if (f.type) checkAssignable(ci->members[f.name].type, t, f.init->loc, "el campo '" + f.name + "'");
             }
             currentClass = saved;
-            // Inicializadores de instancia: función sintetizada con this
             bool anyInit = false;
             for (auto& f : c->fields) if (!f.isStatic && f.init) anyInit = true;
             if (anyInit) {
@@ -1479,7 +1452,7 @@ void Analyzer::stmt(Stmt* s) {
                 for (auto& p : et->ev->params) sig.params.push_back(p);
                 sig.ret = tVoid();
                 checkArgs("el evento '" + et->ev->name + "'", sig, e->args, e->event->loc);
-            } else if (isKnown(et)) {
+            } else if (isKnown(et) && et->kind != TK::Event) {
                 diags.error(e->event->loc, "'emit' necesita un evento, pero esto es " + typeStr(et), "declara el evento con: event Nombre(param: tipo)", "E0401");
             }
             break;
@@ -1506,7 +1479,6 @@ void Analyzer::checkArgs(const std::string& what, const FuncSig& sig, std::vecto
                     "firma: " + sigStr(sig), "E0402");
         return;
     }
-    // Con nombre
     for (auto& a : args) {
         if (a.name.empty()) continue;
         int found = -1;
@@ -1532,7 +1504,6 @@ void Analyzer::checkArgs(const std::string& what, const FuncSig& sig, std::vecto
         for (size_t i = 0; i < missing.size(); i++) m += (i ? ", " : "") + std::string("'") + missing[i] + "'";
         diags.error(loc, "Faltan argumentos para " + what + ": " + m, "firma: " + sigStr(sig), "E0405");
     }
-    // Tipos posicionales
     int pi = 0;
     for (auto& a : args) {
         if (!a.name.empty()) continue;
@@ -1561,7 +1532,6 @@ TypeP Analyzer::memberType(TypeP ot, const std::string& name, SrcLoc loc, bool r
         }
         if (symOut) *symOut = m->sym;
         TypeP t = m->type;
-        // Sustituir T (elemento) en métodos de colecciones
         if (t && t->kind == TK::Func && t->sig && (ot->kind == TK::List || ot->kind == TK::Set || ot->kind == TK::Map) && !ot->args.empty()) {
             TypeP elem = ot->kind == TK::Map ? ot->args[1] : ot->args[0];
             if (t->sig->ret && t->sig->ret->placeholder) {
@@ -1666,7 +1636,6 @@ TypeP Analyzer::memberType(TypeP ot, const std::string& name, SrcLoc loc, bool r
             }
             if (ot->kind == TK::Instance && m->isStatic && report)
                 diags.warning(loc, "'" + name + "' es estático; accede con " + c->name + "." + name, "", "W0305");
-            // Visibilidad
             if (m->vis != Visibility::Public && report) {
                 const ClassInfo* owner = c;
                 for (auto* k = c; k; k = k->super) if (k->members.count(name)) { owner = k; break; }
@@ -1692,7 +1661,6 @@ TypeP Analyzer::member(MemberExpr* m) {
 }
 
 TypeP Analyzer::call(CallExpr* c) {
-    // super(...) en un constructor
     if (c->callee->kind == ExprKind::Super && static_cast<SuperExpr*>(c->callee.get())->member.empty()) {
         auto* sup = static_cast<SuperExpr*>(c->callee.get());
         for (auto& a : c->args) expr(a.value.get());
@@ -1763,7 +1731,6 @@ void Analyzer::assignTo(Expr* target, TypeP vt, SrcLoc loc, bool compound) {
             id->sym = sym;
             addRef(id->loc, sym);
             if (compound && sym) sym->used = true;
-            // Constantes / let
             if (id->res.kind == VarKind::Local || id->res.kind == VarKind::Upvalue) {
                 LocalVar* lv = nullptr;
                 if (id->res.kind == VarKind::Local) lv = &fn->locals[id->res.index];
@@ -1933,7 +1900,6 @@ TypeP Analyzer::expr(Expr* e) {
             };
             bool lk = isKnown(l) && !l->nullable, rk = isKnown(r) && !r->nullable;
             auto isVec = [](const TypeP& x) { return x->kind == TK::Instance && x->cls && x->cls->isNative && (x->cls->name == "Vec2" || x->cls->name == "Vec3" || x->cls->name == "Vec4" || x->cls->name == "Color" || x->cls->name == "Quat"); };
-            // Sobrecarga de operadores: la clase define add/sub/mul/div/mod/pow (o compareTo para <, >...)
             auto overload = [&](const TypeP& x, const char* method) -> TypeP {
                 if (!x || x->kind != TK::Instance || !x->cls) return nullptr;
                 const MemberInfo* m = x->cls->find(method);
@@ -1964,7 +1930,7 @@ TypeP Analyzer::expr(Expr* e) {
                     else if (isVec(l)) t = l;
                     else if (isVec(r) && isNumeric(l)) t = r;
                     else if (b->op == Tok::Star && l->kind == TK::Text && isNumeric(r)) t = tText();
-                    else if (b->op == Tok::Star && l->kind == TK::List && isNumeric(r)) t = l; // [0] * 5
+                    else if (b->op == Tok::Star && l->kind == TK::List && isNumeric(r)) t = l;
                     else if (lk && rk) { mismatch(w); t = tAny(); }
                     else t = (isKnown(l) && isNumeric(l)) || (isKnown(r) && isNumeric(r)) ? tNum() : tAny();
                     break;
@@ -2088,7 +2054,6 @@ TypeP Analyzer::expr(Expr* e) {
                 if (arm.hasBlock) {
                     beginScope(arm.loc.offset);
                     checkUnreachable(arm.block);
-                    // La última expresión del bloque es el valor del caso: match x { 1 => { log(); "uno" } }
                     if (!arm.block.empty() && arm.block.back()->kind == StmtKind::Expr) {
                         auto* last = static_cast<ExprStmt*>(arm.block.back().get());
                         if (last->expr->kind != ExprKind::Assign && last->expr->kind != ExprKind::IncDec) last->isBlockValue = true;
@@ -2100,7 +2065,6 @@ TypeP Analyzer::expr(Expr* e) {
                                     "guarda el resultado en una variable: var r = match x { ... }", "E0326");
                     auto* holder = new BlockStmt(arm.loc);
                     endScope(holder, arm.loc.offset + 1);
-                    // Guardar los locales del brazo en un bloque sintético al inicio de la lista
                     auto blk = std::unique_ptr<BlockStmt>(holder);
                     blk->body = std::move(arm.block);
                     arm.block.clear();
@@ -2161,7 +2125,6 @@ TypeP Analyzer::expr(Expr* e) {
             if (o->priority) expr(o->priority.get());
             if (isKnown(et) && et->kind != TK::Event)
                 diags.error(o->event->loc, "'on' necesita un evento, pero esto es " + typeStr(et), "declara el evento con: event Nombre(param: tipo)", "E0408");
-            // Tipo del parámetro: datos del evento con sus campos
             if (et->kind == TK::Event && et->ev) {
                 std::string key = "@evento:" + et->ev->name + ":" + std::to_string((uintptr_t)et->ev);
                 ClassInfo* payload = nullptr;
@@ -2199,4 +2162,4 @@ TypeP Analyzer::expr(Expr* e) {
     return t;
 }
 
-} // namespace hz
+}

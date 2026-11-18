@@ -1,6 +1,3 @@
-// Servidor de lenguaje de HyperEZ (Language Server Protocol 3.17) por stdin/stdout.
-// Reutiliza el analizador del compilador: diagnósticos, autocompletado, hover, firmas,
-// ir a la definición, referencias, renombrar, resaltado, esquema, arreglos rápidos y formato.
 #include "tools/tools.h"
 #include "lang/vm/vm.h"
 #include "lang/sema/analyzer.h"
@@ -30,13 +27,8 @@ namespace {
 
 using json = nlohmann::json;
 
-// ---------------------------------------------------------------------------
-// Transporte JSON-RPC
-// ---------------------------------------------------------------------------
-
 class Transport {
 public:
-    // Lee un mensaje completo; false al cerrarse la entrada.
     bool read(json& out) {
         size_t length = 0;
         for (;;) {
@@ -52,12 +44,11 @@ public:
     }
     void write(const json& msg) {
         std::string body = msg.dump(-1, ' ', false, json::error_handler_t::replace);
-        if (outbox) { outbox->push_back(body); return; } // en memoria (editor web)
+        if (outbox) { outbox->push_back(body); return; }
         std::string header = "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n";
         writeRaw(header);
         writeRaw(body);
     }
-    // ¿Hay más datos esperando? (para no analizar en cada pulsación si llegan varias seguidas)
     bool pending() {
         if (pos < buf.size()) return true;
 #ifdef _WIN32
@@ -70,7 +61,7 @@ public:
 #endif
     }
 
-    std::vector<std::string>* outbox = nullptr; // si no es nulo, los mensajes van aquí en lugar de a stdout
+    std::vector<std::string>* outbox = nullptr;
 
 private:
     std::string buf;
@@ -114,10 +105,6 @@ private:
     }
 };
 
-// ---------------------------------------------------------------------------
-// Posiciones: el compilador usa offsets en bytes (UTF-8); LSP usa líneas y unidades UTF-16.
-// ---------------------------------------------------------------------------
-
 struct LineIndex {
     const std::string* text = nullptr;
     std::vector<size_t> starts{0};
@@ -152,7 +139,6 @@ struct LineIndex {
     json range(size_t a, size_t b) const { return {{"start", pos(a)}, {"end", pos(std::max(a, b))}}; }
 };
 
-// file:///c%3A/Users/x.hz -> c:/Users/x.hz
 std::string uriToPath(const std::string& uri) {
     std::string s = uri;
     if (s.rfind("file://", 0) == 0) s = s.substr(7);
@@ -191,10 +177,6 @@ std::string pathKey(const std::string& p) {
 
 bool isIdentByte(unsigned char c) { return std::isalnum(c) || c == '_' || c >= 0x80; }
 
-// ---------------------------------------------------------------------------
-// Documentos y análisis
-// ---------------------------------------------------------------------------
-
 struct Analysis {
     std::unique_ptr<VM> vm;
     ModuleUnit* unit = nullptr;
@@ -211,7 +193,7 @@ const char* kKeywords[] = {"var", "let", "const", "function", "return", "if", "e
                            "continue", "class", "struct", "constructor", "this", "super", "extends", "implements", "interface", "enum",
                            "import", "from", "as", "public", "private", "protected", "static", "true", "false", "null", "and", "or",
                            "not", "is", "new", "try", "catch", "finally", "throw", "async", "await", "match", "event", "on", "once",
-                           "emit", "get", "set", "step", "priority"};
+                           "emit", "get", "set", "step", "priority", "elif", "loop", "fn"};
 
 int completionKind(SymKind k) {
     switch (k) {
@@ -233,7 +215,7 @@ int completionKind(SymKind k) {
     return 1;
 }
 
-int symbolKind(SymKind k) { // LSP SymbolKind
+int symbolKind(SymKind k) {
     switch (k) {
         case SymKind::Variable: return 13;
         case SymKind::Constant: return 14;
@@ -280,7 +262,6 @@ std::string symbolHeader(const Symbol* s) {
     return std::string(kindWord(s->kind)) + " " + s->name + t;
 }
 
-// Miembro con nombre, tipo y símbolo (para completar y resolver cadenas a.b.c)
 struct Member {
     std::string name;
     TypeP type;
@@ -293,12 +274,11 @@ struct Member {
 class Server {
 public:
     int run();
-    // Un mensaje JSON-RPC (texto) → las respuestas y notificaciones que produce, como lista JSON (texto)
     std::string handleText(const std::string& text);
 
 private:
     Transport io;
-    std::map<std::string, Doc> docs; // uri -> documento
+    std::map<std::string, Doc> docs;
     bool shutdownRequested = false;
 
     void reply(const json& id, const json& result) { io.write({{"jsonrpc", "2.0"}, {"id", id}, {"result", result}}); }
@@ -337,7 +317,6 @@ private:
     }
     void publish(Doc& d);
 
-    // Consultas
     std::vector<Symbol*> visibleSymbols(Analysis& a, size_t off);
     ClassInfo* enclosingClass(Analysis& a, size_t off);
     TypeP typeOfName(Analysis& a, const std::string& name, size_t off);
@@ -369,7 +348,7 @@ void Server::publish(Doc& d) {
         for (auto& dg : d.an.unit->diags.items) {
             size_t a = dg.loc.line > 0 ? (size_t)dg.loc.offset : 0;
             size_t b = a + (size_t)std::max(dg.loc.length, 0);
-            if (b == a && dg.loc.line > 0) { // al menos una palabra o un carácter
+            if (b == a && dg.loc.line > 0) {
                 b = a;
                 while (b < d.text.size() && isIdentByte((unsigned char)d.text[b])) b++;
                 if (b == a && b < d.text.size() && d.text[b] != '\n') b++;
@@ -408,13 +387,11 @@ std::vector<Symbol*> Server::visibleSymbols(Analysis& a, size_t off) {
         if (!s || s->name.empty() || s->name.rfind("__", 0) == 0) return;
         if (seen.insert(s->name).second) out.push_back(s);
     };
-    // Locales: los ámbitos más internos primero
     std::vector<const ScopeRecord*> scopes;
     for (auto& sc : a.unit->scopes) if ((size_t)sc.start <= off && off <= (size_t)sc.end) scopes.push_back(&sc);
     std::sort(scopes.begin(), scopes.end(), [](auto* x, auto* y) { return x->start > y->start; });
     for (auto* sc : scopes)
         for (auto* s : sc->symbols) if ((size_t)s->scopeStart <= off) add(s);
-    // Miembros de la clase que contiene el cursor
     if (ClassInfo* c = enclosingClass(a, off))
         for (auto* k = c; k; k = k->super)
             for (auto& [n, m] : k->members) add(m.sym);
@@ -527,16 +504,14 @@ TypeP Server::memberType(Analysis& a, const TypeP& t, const std::string& name) {
     for (auto& m : membersOf(a, t)) {
         if (m.name != name) continue;
         TypeP r = m.type ? m.type : tAny();
-        // T: el tipo del elemento de la colección
         if (r->placeholder && t && !t->args.empty()) return t->args[0];
         return r;
     }
     return tAny();
 }
 
-// Recorre hacia atrás una expresión del tipo  a.b(c)[0].d  que termina en 'end' y devuelve su tipo.
 TypeP Server::resolveChain(Analysis& a, const std::string& text, size_t end, size_t off, std::string* lastName) {
-    struct Seg { char kind; std::string name; }; // i=identificador, c=llamada, x=índice, s=texto, l=lista, n=número
+    struct Seg { char kind; std::string name; };
     std::vector<Seg> segs;
     size_t q = end;
     auto skipBack = [&](char open, char close) -> bool {
@@ -617,8 +592,6 @@ const RefRecord* Server::refAt(Analysis& a, size_t off) {
     return best;
 }
 
-// Un nombre traído con 'from X import nombre' es un símbolo propio del archivo que importa;
-// en su posición hay además una referencia al símbolo original del otro módulo.
 const Symbol* Server::origin(Analysis& a, const Symbol* s) {
     for (auto& u : a.vm->units) {
         if (!u->program) continue;
@@ -635,7 +608,6 @@ const Symbol* Server::origin(Analysis& a, const Symbol* s) {
     return s;
 }
 
-// El símbolo original y todos sus alias de importación (para referencias y renombrar).
 std::set<const Symbol*> Server::related(Analysis& a, const Symbol* s, bool sameNameOnly) {
     const Symbol* o = origin(a, s);
     std::set<const Symbol*> out{o};
@@ -654,10 +626,6 @@ std::set<const Symbol*> Server::related(Analysis& a, const Symbol* s, bool sameN
     return out;
 }
 
-// ---------------------------------------------------------------------------
-// Peticiones
-// ---------------------------------------------------------------------------
-
 static json markdown(const std::string& code, const std::string& doc) {
     std::string v = "```hyperez\n" + code + "\n```";
     if (!doc.empty()) v += "\n\n" + doc;
@@ -672,7 +640,6 @@ void Server::onCompletion(const json& id, const json& p) {
     size_t off = li.offset(p["position"]["line"], p["position"]["character"]);
     size_t wordStart = off;
     while (wordStart > 0 && isIdentByte((unsigned char)d.text[wordStart - 1])) wordStart--;
-    // No completar dentro de comentarios de línea
     size_t ls = d.text.rfind('\n', off ? off - 1 : 0);
     ls = ls == std::string::npos ? 0 : ls + 1;
     std::string linePrefix = d.text.substr(ls, off - ls);
@@ -681,7 +648,6 @@ void Server::onCompletion(const json& id, const json& p) {
     bool member = wordStart > 0 && d.text[wordStart - 1] == '.' && !(wordStart > 1 && d.text[wordStart - 2] == '.');
     json items = json::array();
     if (member) {
-        // Se analiza una copia con un nombre provisional tras el punto para que el resto del bloque se lea bien.
         std::string patched = d.text;
         if (wordStart == off) patched.insert(off, "__hz_completar");
         Analysis a = analyzeText(d.path, patched);
@@ -740,7 +706,6 @@ void Server::onSignatureHelp(const json& id, const json& p) {
     Doc& d = it->second;
     LineIndex li(d.text);
     size_t off = li.offset(p["position"]["line"], p["position"]["character"]);
-    // Paréntesis abierto que contiene el cursor y número de comas a su nivel
     int depth = 0, commas = 0;
     size_t q = off;
     bool found = false;
@@ -775,7 +740,6 @@ void Server::onSignatureHelp(const json& id, const json& p) {
     if (!sig) { reply(id, nullptr); return; }
     for (auto* s : visibleSymbols(d.an, off)) if (s->name == name && doc.empty()) doc = s->doc;
     if (doc.empty()) {
-        // método: buscar el símbolo por nombre entre los miembros conocidos
         for (auto& sym : d.an.unit->symbols) if (sym->name == name && !sym->doc.empty()) { doc = sym->doc; break; }
     }
     std::string label = name + "(";
@@ -785,7 +749,6 @@ void Server::onSignatureHelp(const json& id, const json& p) {
         if (i) label += ", ";
         std::string part = (sp.rest ? "..." : "") + sp.name + (sp.type && sp.type->kind != TK::Any ? ": " + typeStr(sp.type) : "") +
                            (sp.optional && !sp.rest ? (sp.def.empty() ? "?" : " = " + sp.def) : "");
-        // offsets en UTF-16
         auto u16len = [](const std::string& s) { size_t n = 0; for (size_t i = 0; i < s.size();) { unsigned char c = (unsigned char)s[i]; size_t l = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : 4; n += l == 4 ? 2 : 1; i += l; } return n; };
         size_t start = u16len(label);
         label += part;
@@ -883,7 +846,6 @@ void Server::onRename(const json& id, const json& p) {
         for (auto& ref : u->refs) {
             if (!syms.count(ref.sym) || !seen.insert(ref.loc.offset).second) continue;
             size_t a = (size_t)ref.loc.offset;
-            // la referencia debe contener exactamente el nombre (evita tocar 'this.x' por error)
             if (src.compare(a, ref.sym->name.size(), ref.sym->name) != 0) continue;
             edits.push_back({{"range", ui.range(a, a + ref.sym->name.size())}, {"newText", newName}});
         }
@@ -900,12 +862,12 @@ void Server::onDocumentSymbol(const json& id, const json& p) {
     LineIndex li(d.text);
     json out = json::array();
     std::vector<Symbol*> tops;
-    std::set<int> importLines; // los nombres importados no se muestran en el esquema
+    std::set<int> importLines;
     if (d.an.unit->program)
         for (auto& st : d.an.unit->program->body) if (st->kind == StmtKind::Import) importLines.insert(st->loc.line);
     for (auto& [n, s] : d.an.unit->globalSyms)
         if (s && s->file == d.an.unit->path && s->loc.line > 0 && s->kind != SymKind::Module && s->kind != SymKind::Library &&
-            !importLines.count(s->loc.line) && n.rfind("__", 0) != 0) // __d1...: variables internas de la desestructuración
+            !importLines.count(s->loc.line) && n.rfind("__", 0) != 0)
             tops.push_back(s);
     std::sort(tops.begin(), tops.end(), [](Symbol* a, Symbol* b) { return a->loc.offset < b->loc.offset; });
     for (auto* s : tops) {
@@ -933,7 +895,6 @@ void Server::onDocumentSymbol(const json& id, const json& p) {
     reply(id, out);
 }
 
-// Dar formato al documento (hyper fmt): un solo cambio con el texto completo
 void Server::onFormatting(const json& id, const json& p) {
     auto it = docs.find(p["textDocument"]["uri"].get<std::string>());
     if (it == docs.end()) { reply(id, json::array()); return; }
@@ -990,7 +951,7 @@ void Server::handle(const json& msg) {
             d.path = uriToPath(d.uri);
             d.text = td["text"];
             d.version = td.value("version", 0);
-            for (auto& [u, o] : docs) o.dirty = true; // los que importan este archivo ya lo encuentran
+            for (auto& [u, o] : docs) o.dirty = true;
         } else if (method == "textDocument/didChange") {
             auto itd = docs.find(p["textDocument"]["uri"].get<std::string>());
             if (itd != docs.end() && !p["contentChanges"].empty()) {
@@ -999,7 +960,7 @@ void Server::handle(const json& msg) {
                 itd->second.dirty = true;
             }
         } else if (method == "textDocument/didSave") {
-            for (auto& [u, d] : docs) d.dirty = true; // un import pudo cambiar
+            for (auto& [u, d] : docs) d.dirty = true;
         } else if (method == "textDocument/didClose") {
             std::string uri = p["textDocument"]["uri"];
             docs.erase(uri);
@@ -1027,11 +988,10 @@ std::string Server::handleText(const std::string& text) {
     json msg = json::parse(text, nullptr, false);
     if (msg.is_object()) {
         handle(msg);
-        // en memoria (el editor web) no hay "guardar": un cambio puede afectar a los que importan ese archivo
         if (msg.value("method", "") == "textDocument/didChange" && docs.size() > 1)
             for (auto& [u, d] : docs) d.dirty = true;
     }
-    for (auto& [u, d] : docs) if (d.dirty) ensure(d); // los diagnósticos, al momento
+    for (auto& [u, d] : docs) if (d.dirty) ensure(d);
     io.outbox = nullptr;
     std::string r = "[";
     for (size_t i = 0; i < out.size(); i++) r += (i ? "," : "") + out[i];
@@ -1040,7 +1000,6 @@ std::string Server::handleText(const std::string& text) {
 
 int Server::run() {
     for (;;) {
-        // Analizar los documentos pendientes cuando no llegan más mensajes
         if (!io.pending())
             for (auto& [u, d] : docs) if (d.dirty) ensure(d);
         json msg;
@@ -1050,7 +1009,7 @@ int Server::run() {
     }
 }
 
-} // namespace
+}
 
 int runLanguageServer() {
     Server s;
@@ -1058,8 +1017,8 @@ int runLanguageServer() {
 }
 
 std::string languageServerMessage(const std::string& message) {
-    static Server* s = new Server(); // vive mientras dure la página
+    static Server* s = new Server();
     return s->handleText(message);
 }
 
-} // namespace hz
+}

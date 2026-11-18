@@ -1,6 +1,3 @@
-# Incrusta un archivo binario en el ejecutable como un array de C++.
-#   cmake -DIN=<archivo> -DOUT=<archivo.cpp> -DNAME=<identificador> -P embed_bin.cmake
-# Genera:  const unsigned char NAME[] = {...};  const unsigned long NAME_size = ...;
 file(READ "${IN}" hex HEX)
 string(LENGTH "${hex}" n)
 math(EXPR size "${n} / 2")

@@ -1,7 +1,3 @@
-// Documentación en HTML para leer sin conexión (la instala HyperEZ-Setup en docs-html/ y la abre la
-// Ayuda de HyperEZ Editor). Está hecha con el propio HyperEZ: la biblioteca site convierte cada .md.
-//
-//   hyper tools/docs_html.hz docs carpeta-de-salida
 import site
 from "./docs_menu.hz" import MENU
 
@@ -11,10 +7,8 @@ if System.args.length < 2 {
     print("Uso: hyper tools/docs_html.hz <carpeta docs> <carpeta de salida>")
     exit(2)
 }
-// las rutas relativas, desde la carpeta en la que se ejecuta (no desde tools/)
 var origen = Path.join(System.cwd, System.args[0])
 var destino = Path.join(System.cwd, System.args[1])
-
 
 var t0 = Time.clock()
 var hechos = site.build(origen, destino, {
@@ -24,8 +18,6 @@ var hechos = site.build(origen, destino, {
     footer: "HyperEZ " + System.version + " · documentación para leer sin conexión · " + REPO.replace("/blob/main/", "")
 })
 
-// Los enlaces que salen de docs/ (../CHANGELOG.md, ../../CONTRIBUTING.md...) van al repositorio en GitHub;
-// los de examples/ se quedan relativos: en la instalación, examples/ está junto a docs-html/.
 const FUERA = Regex(r'href="((?:\.\./)+)([^"#]+?)\.html(#[^"]*)?"')
 var paginas = 0
 foreach ruta in hechos {

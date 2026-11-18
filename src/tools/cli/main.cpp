@@ -1,9 +1,9 @@
-// hyper — herramienta de línea de comandos de HyperEZ.
 #include "lang/vm/vm.h"
 #include "lang/sema/analyzer.h"
 #include "lang/syntax/format.h"
 #include "lang/compiler/disasm.h"
 #include "tools/tools.h"
+#include "tools/platform/editors.h"
 
 #include <nlohmann/json.hpp>
 
@@ -50,9 +50,7 @@ static void printHelp() {
     row("hyper docs [salida.md]", "referencia de toda la API en Markdown");
     row("hyper bytecode <archivo.hz>", "muestra las instrucciones que genera el compilador");
     row("hyper lsp", "servidor de lenguaje para editores");
-#ifndef __APPLE__
-    row("hyper register | unregister", "asocia (o no) los .hz y .hez con este hyper");
-#endif
+    row("hyper register | unregister", "registra (o quita) el lenguaje en el sistema y en tus editores");
     row("hyper version", "versión y datos de compilación");
     std::printf("\n");
     section("Opciones de run");
@@ -96,10 +94,6 @@ void hz::setupVM(VM& vm) {
     buildWorld(vm);
     if (!vm.loadPrelude()) std::exit(70);
 }
-
-// ---------------------------------------------------------------------------
-// check
-// ---------------------------------------------------------------------------
 
 static void collectSources(const std::string& path, std::vector<std::string>& out) {
     if (dirExists(path)) {
@@ -146,9 +140,28 @@ static int cmdCheck(const std::vector<std::string>& paths) {
     return errors ? 1 : 0;
 }
 
-// ---------------------------------------------------------------------------
-// fmt: sangría y espacios (sin cambiar el significado)
-// ---------------------------------------------------------------------------
+static int cmdRegister(bool install) {
+    bool ok = true;
+#ifndef __APPLE__
+    ok = registerFileTypes(exePath(), install);
+#endif
+    std::string self = exePath();
+    std::filesystem::path support = findEditorSupportDir(std::filesystem::path(std::u8string(self.begin(), self.end())));
+    auto editors = installEditorSupport(support, install);
+    if (!editors.empty()) {
+        std::string list;
+        for (auto& e : editors) list += (list.empty() ? "" : ", ") + e;
+        std::printf("%s✓%s %s: %s\n", color::green(), color::reset(),
+                    install ? "HyperEZ reconocido en" : "Quitado de", list.c_str());
+    } else if (install && support.empty()) {
+        std::printf("%saviso:%s no se encontró la carpeta editors junto a hyper; los editores no se han configurado\n",
+                    color::yellow(), color::reset());
+    } else if (install) {
+        std::printf("No se encontró ningún editor compatible (Notepad++, Sublime Text, Vim, Neovim, nano, gedit, Kate).\n"
+                    "Para VS Code instala la extensión; cualquier editor con LSP puede usar \"hyper lsp\".\n");
+    }
+    return ok ? 0 : 1;
+}
 
 static int cmdFmt(const std::vector<std::string>& args) {
     bool check = false;
@@ -182,10 +195,6 @@ static int cmdFmt(const std::vector<std::string>& args) {
     return failed ? 1 : 0;
 }
 
-// ---------------------------------------------------------------------------
-// run
-// ---------------------------------------------------------------------------
-
 static void waitForKey() {
 #ifdef _WIN32
     std::fflush(stdout);
@@ -201,8 +210,6 @@ static void waitForKey() {
 #endif
 }
 
-// asPath: si no está vacío, el código de 'file' se ejecuta como si estuviera en asPath (las importaciones,
-// System.scriptDir y los mensajes de error usan asPath). Lo usan los editores para ejecutar sin guardar.
 static int cmdRun(const std::string& file, const std::vector<std::string>& args, bool pause, const std::string& asPath = "") {
     int code = 0;
     {
@@ -236,15 +243,6 @@ static int cmdRun(const std::string& file, const std::vector<std::string>& args,
     return code;
 }
 
-// ---------------------------------------------------------------------------
-// test
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Carpetas de un proyecto HyperEZ (hypersettings, hypercode, hypertests, hypertools...)
-// ---------------------------------------------------------------------------
-
-// La raíz del proyecto: la primera carpeta con hypersettings/ desde dir hacia arriba ("" si no hay)
 static std::string findProjectHome(std::string dir) {
     for (int i = 0; i < 16 && !dir.empty(); i++) {
         if (dirExists(pathJoin(dir, "hypersettings"))) return dir;
@@ -255,7 +253,6 @@ static std::string findProjectHome(std::string dir) {
     return "";
 }
 
-// hypersettings/proyecto.json como mapa (vacío si no hay o no se puede leer)
 static nlohmann::json projectSettings(const std::string& home) {
     std::string text;
     if (home.empty() || !readFile(pathJoin(pathJoin(home, "hypersettings"), "proyecto.json"), text)) return nlohmann::json::object();
@@ -263,13 +260,11 @@ static nlohmann::json projectSettings(const std::string& home) {
     return j.is_object() ? j : nlohmann::json::object();
 }
 
-// Una carpeta del proyecto (hypertests, hypertools...) relativa si el proyecto es la carpeta actual
 static std::string projectFolder(const std::string& home, const char* name) {
     if (home.empty() || pathAbsolute(home) == pathAbsolute(".")) return name;
     return pathJoin(home, name);
 }
 
-// hyper tool [nombre] [args]: ejecuta hypertools/<nombre>.hez; sin nombre, lista las herramientas
 static int cmdTool(const std::vector<std::string>& rest) {
     std::string home = findProjectHome(pathAbsolute("."));
     std::string dir = projectFolder(home, "hypertools");
@@ -310,10 +305,8 @@ static std::string normalizeOutput(std::string s, const std::string& dir) {
     std::string out;
     out.reserve(s.size());
     for (size_t i = 0; i < s.size(); i++) if (s[i] != '\r') out += s[i];
-    // rutas absolutas -> relativas a la carpeta de la prueba
     std::string prefix = dir + "/";
     for (size_t p; (p = out.find(prefix)) != std::string::npos;) out.erase(p, prefix.size());
-    // espacios finales de cada línea y líneas vacías del final
     std::string r;
     for (auto& line : splitLines(out)) {
         std::string l = line;
@@ -327,14 +320,13 @@ static std::string normalizeOutput(std::string s, const std::string& dir) {
 
 static int cmdTest(const std::vector<std::string>& paths, bool update) {
     std::vector<std::string> roots = paths;
-    if (roots.empty()) { // hypertests/ del proyecto (o tests/ si es un proyecto de antes)
+    if (roots.empty()) {
         std::string home = findProjectHome(pathAbsolute("."));
         std::string ht = projectFolder(home, "hypertests");
         roots.push_back(dirExists(ht) ? ht : dirExists("tests") ? "tests" : ".");
     }
     std::vector<std::string> files;
     for (auto& p : roots) collectSources(p, files);
-    // los archivos que empiezan por "_" son auxiliares (se importan desde otras pruebas)
     files.erase(std::remove_if(files.begin(), files.end(), [](const std::string& f) {
         std::string n = pathFilename(f);
         return n.empty() || n[0] == '_' || f.find("/bench/") != std::string::npos;
@@ -354,7 +346,7 @@ static int cmdTest(const std::vector<std::string>& paths, bool update) {
         po.cwd = dir;
         po.timeoutMs = 20000;
         po.mergeStderr = true;
-        po.env = {"NO_COLOR=1"};        // sin colores en la salida capturada
+        po.env = {"NO_COLOR=1"};
         po.unsetEnv = {"HYPEREZ_COLOR"};
         ProcessResult pr = runCapture({self, "run", abs}, po);
         std::string& output = pr.out;
@@ -399,10 +391,6 @@ static int cmdTest(const std::vector<std::string>& paths, bool update) {
     return failed ? 1 : 0;
 }
 
-// ---------------------------------------------------------------------------
-// serve: servidor para desarrollar webs (recarga el navegador al guardar)
-// ---------------------------------------------------------------------------
-
 static int cmdServe(const std::vector<std::string>& args) {
     std::string folder = ".", port = "8080", host = "127.0.0.1";
     bool open = false, reload = true;
@@ -434,10 +422,6 @@ static int cmdServe(const std::vector<std::string>& args) {
     vm.flushOutput();
     return ok ? 0 : 1;
 }
-
-// ---------------------------------------------------------------------------
-// new
-// ---------------------------------------------------------------------------
 
 static int cmdNew(const std::vector<std::string>& args) {
     std::string name, kind = "juego";
@@ -476,10 +460,6 @@ static int cmdNew(const std::vector<std::string>& args) {
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// docs
-// ---------------------------------------------------------------------------
-
 static int cmdDocs(const std::string& out) {
     VM vm;
     setupVM(vm);
@@ -492,13 +472,8 @@ static int cmdDocs(const std::string& out) {
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// main
-// ---------------------------------------------------------------------------
-
 static std::vector<std::string> commandLineArgs(int argc, char** argv) {
 #ifdef _WIN32
-    // argv de MinGW usa la página de códigos ANSI: se recupera la línea de comandos en UTF-16.
     int n = 0;
     LPWSTR* w = CommandLineToArgvW(GetCommandLineW(), &n);
     if (w) {
@@ -523,9 +498,8 @@ static bool isSourceFile(const std::string& p) {
 
 int main(int argc, char** argv) {
     std::vector<std::string> args = commandLineArgs(argc, argv);
-    if (!args.empty() && args[0] == "lsp") return runLanguageServer(); // stdout es el canal del protocolo
+    if (!args.empty() && args[0] == "lsp") return runLanguageServer();
     consoleInit();
-    // Sin argumentos en una consola (o con doble clic en hyper.exe): consola interactiva
     if (args.empty() && stdinIsConsole()) return runRepl();
     if (args.empty() || args[0] == "help" || args[0] == "--help" || args[0] == "-h") { printHelp(); return 0; }
     const std::string cmd = args[0];
@@ -548,7 +522,6 @@ int main(int argc, char** argv) {
             progArgs.push_back(a);
         }
         if (file.empty()) {
-            // el programa principal del proyecto (hypersettings/proyecto.json), o main.hez / main.hz
             std::string home = findProjectHome(pathAbsolute("."));
             auto cfg = projectSettings(home);
             std::string principal = cfg.value("principal", cfg.value("main", std::string()));
@@ -624,11 +597,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (cmd == "docs") return cmdDocs(rest.empty() ? "" : rest[0]);
-#ifndef __APPLE__
-    if (cmd == "register") return registerFileTypes(exePath(), true) ? 0 : 1;
-    if (cmd == "unregister") return registerFileTypes(exePath(), false) ? 0 : 1;
-#endif
-    // Scripts sin extensión con "#!/usr/bin/env hyper" en la primera línea
+    if (cmd == "register" || cmd == "unregister") return cmdRegister(cmd == "register");
     if (fileExists(cmd)) {
         std::string head;
         if (readFile(cmd, head) && startsWith(head, "#!")) return cmdRun(cmd, rest, false);

@@ -1,18 +1,10 @@
 #!/bin/sh
-# Instala HyperEZ para el usuario actual, sin sudo:
-#   ~/.local/bin/hyper           el ejecutable
-#   ~/.local/share/hyperez       ejemplos, documentación e icono
-# En Linux asocia además los archivos .hz y .hez (doble clic para ejecutarlos).
-#
-#   sh install.sh                 instalar
-#   sh install.sh --uninstall     desinstalar
-#   HYPEREZ_HOME=/opt/hyperez sh install.sh   otra carpeta
 set -e
 DEST="${HYPEREZ_HOME:-$HOME/.local}"
 HERE=$(cd "$(dirname "$0")" && pwd)
 
 if [ "$1" = "--uninstall" ]; then
-    if [ -x "$DEST/bin/hyper" ] && [ "$(uname)" != "Darwin" ]; then "$DEST/bin/hyper" unregister || true; fi
+    if [ -x "$DEST/bin/hyper" ]; then "$DEST/bin/hyper" unregister || true; fi
     rm -f "$DEST/bin/hyper"
     rm -rf "$DEST/share/hyperez"
     echo "HyperEZ desinstalado."
@@ -25,11 +17,8 @@ chmod +x "$DEST/bin/hyper"
 cp -R "$HERE/share/hyperez/." "$DEST/share/hyperez/"
 echo "✓ HyperEZ $("$DEST/bin/hyper" version | head -n 1 | sed 's/HyperEZ //') instalado en $DEST/bin/hyper"
 
-if [ "$(uname)" != "Darwin" ]; then
-    "$DEST/bin/hyper" register || echo "(no se pudo asociar .hz/.hez con el escritorio; no es grave)"
-fi
+"$DEST/bin/hyper" register || echo "(no se pudo registrar el lenguaje en el escritorio; hyper funciona igual)"
 
-# Extensión de VS Code, si está VS Code
 VSIX=$(ls "$HERE"/*.vsix 2>/dev/null | head -n 1 || true)
 if [ -n "$VSIX" ] && command -v code >/dev/null 2>&1; then
     code --install-extension "$VSIX" --force >/dev/null 2>&1 && echo "✓ Extensión de VS Code instalada" || true

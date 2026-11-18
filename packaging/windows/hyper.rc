@@ -1,4 +1,3 @@
-// Recursos de hyper.exe: iconos, manifiesto e información de versión.
 #include <winver.h>
 #include "../../src/core/version.h"
 

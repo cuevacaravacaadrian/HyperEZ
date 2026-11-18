@@ -1,9 +1,3 @@
-// pack — empaqueta una carpeta en un único archivo para incrustarlo en el instalador.
-//
-//   pack <salida.bin> <carpeta>
-//
-// Formato (little endian):
-//   "HZPACK01"  u32 n  { u32 lenRuta, ruta UTF-8 con '/', u64 tamaño, datos }*n
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>

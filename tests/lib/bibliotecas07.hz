@@ -1,4 +1,3 @@
-// Bibliotecas nuevas en 0.7: collections, algo, log, template, markdown, ini, svg y zip
 import collections
 import algo
 import log
@@ -54,7 +53,7 @@ test("collections: contador y caché", () => {
     cache.set("x", 1)
     cache.set("y", 2)
     cache.get("x")
-    cache.set("z", 3) // se olvida "y", el menos usado
+    cache.set("z", 3)
     assert(cache.has("x") and cache.has("z") and not cache.has("y"))
     var calculos = 0
     var doble = k => {
@@ -114,7 +113,7 @@ test("algo: caminos en una cuadrícula", () => {
     var camino = algo.gridPath(mapa, [0, 0], [6, 2])
     assertEqual(camino[0], [0, 0])
     assertEqual(camino.last(), [6, 2])
-    assertEqual(camino.length, 15) // la única entrada a G es por la derecha
+    assertEqual(camino.length, 15)
     assert(camino.all(p => algo.walkable(mapa, p[0], p[1])))
     assertEqual(algo.gridPath(["S#G"], [0, 0], [2, 0]), null)
     assertEqual(algo.floodFill(["..#", "..#", "###"], 0, 0).length, 4)
@@ -141,7 +140,6 @@ test("template", () => {
     assertEqual(template.renderHtml("<p>{{x}}</p>{{{x}}}", { x: "<b>" }), "<p>&lt;b&gt;</p><b>")
     assertEqual(template.render("{{! nada }}ok{{#unless no}}!{{/unless}}", { no: false }), "ok!")
     assertThrows(() => template.render("{{#if x}}sin cerrar", {}))
-    // las líneas con solo una etiqueta de bloque no dejan líneas en blanco
     assertEqual(template.render("Lista:\n{{#each n}}\n- {{this}}\n{{/each}}\nFin", { n: [1, 2] }), "Lista:\n- 1\n- 2\nFin")
 })
 

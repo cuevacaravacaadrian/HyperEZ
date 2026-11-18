@@ -4,6 +4,8 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 
 #ifdef _WIN32
@@ -24,20 +26,26 @@ namespace fs = std::filesystem;
 
 namespace hz {
 
-// ---- Texto ---------------------------------------------------------------
-
 std::string formatNumber(double n) {
     if (std::isnan(n)) return "nan";
     if (std::isinf(n)) return n > 0 ? "inf" : "-inf";
-    if (n == 0) return "0"; // también -0
+    if (n == 0) return "0";
     if (std::fabs(n) < 1e16 && n == std::floor(n)) {
         char buf[32];
         auto r = std::to_chars(buf, buf + sizeof buf, (long long)n);
         return std::string(buf, r.ptr);
     }
     char buf[64];
+#if defined(__APPLE__) && defined(_LIBCPP_VERSION)
+    for (int prec = 1; prec <= 17; prec++) {
+        std::snprintf(buf, sizeof buf, "%.*g", prec, n);
+        if (std::strtod(buf, nullptr) == n) break;
+    }
+    return std::string(buf);
+#else
     auto r = std::to_chars(buf, buf + sizeof buf, n);
     return std::string(buf, r.ptr);
+#endif
 }
 
 std::string escapeString(std::string_view s, char quote) {
@@ -90,7 +98,6 @@ std::vector<std::string> splitLines(std::string_view s) {
 bool startsWith(std::string_view s, std::string_view p) { return s.size() >= p.size() && s.substr(0, p.size()) == p; }
 bool endsWith(std::string_view s, std::string_view p) { return s.size() >= p.size() && s.substr(s.size() - p.size()) == p; }
 
-// Distancia de edición con transposiciones (Damerau, alineación óptima): "pirnt" -> "print" = 1.
 int levenshtein(std::string_view a, std::string_view b) {
     size_t n = a.size(), m = b.size();
     std::vector<std::vector<int>> d(n + 1, std::vector<int>(m + 1));
@@ -116,8 +123,6 @@ std::string closestMatch(std::string_view word, const std::vector<std::string>& 
     }
     return bestD <= limit ? best : "";
 }
-
-// ---- UTF-8 ---------------------------------------------------------------
 
 uint32_t utf8Decode(std::string_view s, size_t& i) {
     unsigned char c = (unsigned char)s[i];
@@ -161,8 +166,6 @@ size_t utf8Offset(std::string_view s, size_t charIndex) {
     }
     return s.size();
 }
-
-// ---- Sistema de archivos --------------------------------------------------
 
 static fs::path P(const std::string& s) { return fs::path((const char8_t*)s.c_str()); }
 static std::string S(const fs::path& p) {
@@ -274,8 +277,6 @@ std::vector<std::string> listFilesRecursive(const std::string& dir) {
     return out;
 }
 
-// ---- Consola --------------------------------------------------------------
-
 static bool g_colors = false;
 
 void consoleInit() {
@@ -301,7 +302,6 @@ bool consoleColors() { return g_colors; }
 bool readLine(std::string& out) {
     out.clear();
 #ifdef _WIN32
-    // En una consola, ReadConsoleW lee bien los acentos y la ñ (la entrada UTF-8 por ReadFile no es fiable).
     HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
     DWORD mode = 0;
     if (in != INVALID_HANDLE_VALUE && GetConsoleMode(in, &mode)) {
@@ -315,7 +315,7 @@ bool readLine(std::string& out) {
             if (w.back() == L'\n') break;
         }
         while (!w.empty() && (w.back() == L'\n' || w.back() == L'\r')) w.pop_back();
-        if (w.size() == 1 && w[0] == 0x1A) return false; // Ctrl+Z: fin de la entrada
+        if (w.size() == 1 && w[0] == 0x1A) return false;
         int sz = WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), nullptr, 0, nullptr, nullptr);
         out.resize(sz);
         WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), out.data(), sz, nullptr, nullptr);
@@ -360,4 +360,4 @@ double nowSeconds() {
     return duration<double>(steady_clock::now() - start).count();
 }
 
-} // namespace hz
+}

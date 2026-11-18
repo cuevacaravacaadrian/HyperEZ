@@ -1,4 +1,3 @@
-// Plantillas de 'hyper new' y generador de la referencia de la API ('hyper docs').
 #include "tools/tools.h"
 #include "lang/vm/vm.h"
 #include "lang/sema/analyzer.h"
@@ -8,10 +7,6 @@
 #include <set>
 
 namespace hz {
-
-// ---------------------------------------------------------------------------
-// Plantillas
-// ---------------------------------------------------------------------------
 
 std::string projectTemplateMain(const std::string& title) {
     return R"HZ(// )HZ" + title + R"HZ( — creado con HyperEZ
@@ -187,10 +182,6 @@ std::string projectTemplateReadme(const std::string& title) {
            "se repita cada vez que guardas.\n";
 }
 
-// ---------------------------------------------------------------------------
-// Referencia de la API
-// ---------------------------------------------------------------------------
-
 static std::string mdEscape(const std::string& s) {
     std::string r;
     for (char c : s) { if (c == '|') r += "\\|"; else if (c == '\n') r += ' '; else r += c; }
@@ -227,7 +218,6 @@ std::string generateApiMarkdown(VM& vm) {
     std::sort(classes.begin(), classes.end(), byName);
     std::sort(modules.begin(), modules.end(), byName);
 
-    // Índice
     md += "## Contenido\n\n- [Funciones globales](#funciones-globales)\n- [Constantes](#constantes)\n";
     md += "- Tipos y clases: ";
     for (size_t i = 0; i < classes.size(); i++) md += std::string(i ? ", " : "") + "[" + classes[i]->name + "](#" + anchor("clase-" + classes[i]->name) + ")";
@@ -243,7 +233,6 @@ std::string generateApiMarkdown(VM& vm) {
 
     md += "## Funciones globales\n\n";
     for (auto* e : globalsFn) fnBlock(*e, "");
-    // Funciones del preludio (escritas en HyperEZ)
     if (vm.preludeUnit) {
         for (auto& [name, sym] : vm.preludeUnit->globalSyms) {
             if (!sym || name.rfind("__", 0) == 0 || sym->vis == Visibility::Private) continue;
@@ -307,4 +296,4 @@ std::string generateApiMarkdown(VM& vm) {
     return md;
 }
 
-} // namespace hz
+}

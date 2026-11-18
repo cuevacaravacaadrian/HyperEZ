@@ -1,15 +1,3 @@
-// db — base de datos de documentos (mapas) guardada en un archivo JSON.
-//
-//   import db
-//   var base = db.Database("datos/partida.json")    // sin ruta: solo en memoria
-//   var jugadores = base.collection("jugadores")
-//   jugadores.insert({ nombre: "Ana", puntos: 120 })
-//   print(jugadores.find({ nombre: "Ana" }))
-//   print(jugadores.find(j => j.puntos > 100))
-//   jugadores.update({ nombre: "Ana" }, { puntos: 150 })
-//
-// Cada documento recibe un _id numérico. Los cambios se guardan en el archivo al momento.
-
 /// ¿Cumple el documento el filtro? El filtro puede ser null (todos), un mapa (campos iguales) o una función.
 function matches(doc: map, filtro: any): bool {
     if filtro == null { return true }

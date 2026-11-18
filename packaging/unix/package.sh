@@ -1,6 +1,4 @@
 #!/bin/sh
-# Crea el paquete de Linux o macOS: dist/HyperEZ-<versión>-<sistema>-<arquitectura>.tar.gz
-#   sh packaging/unix/package.sh build/hyper [extension.vsix]
 set -e
 HYPER="$1"
 VSIX="$2"
@@ -28,6 +26,8 @@ find "$STAGE/share/hyperez/examples" -name '*.out' -delete
 cp -R "$ROOT/docs/." "$STAGE/share/hyperez/docs/"
 "$HYPER" docs "$STAGE/share/hyperez/docs/API.md" >/dev/null 2>&1 || true
 cp "$ROOT/assets/icons/hyperez-256.png" "$STAGE/share/hyperez/hyperez.png"
+mkdir -p "$STAGE/share/hyperez/editors"
+for d in gtksourceview highlightjs kate nano notepad++ sublime vim; do cp -R "$ROOT/editors/$d" "$STAGE/share/hyperez/editors/"; done
 cp "$ROOT/packaging/unix/install.sh" "$STAGE/install.sh"
 chmod +x "$STAGE/install.sh" "$STAGE/bin/hyper"
 cp "$ROOT/README.md" "$ROOT/LICENSE" "$ROOT/CHANGELOG.md" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/assets/fonts/LICENSE-DejaVu.txt" "$STAGE/"

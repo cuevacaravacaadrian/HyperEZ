@@ -1,7 +1,3 @@
-// hyper repl — consola interactiva: escribe código y ve el resultado al momento.
-//
-// Cada entrada se analiza junto con las anteriores (así conoce sus variables, funciones y tipos),
-// pero solo se genera y ejecuta el código nuevo. Los globales viven en un módulo compartido.
 #include "lang/vm/vm.h"
 #include "lang/sema/analyzer.h"
 #include "lang/syntax/lexer.h"
@@ -27,11 +23,11 @@ namespace hz {
 namespace {
 
 constexpr const char* kName = "<consola>";
-bool g_shown = false; // la última entrada mostró un valor
+bool g_shown = false;
 
 struct Shape {
-    std::set<std::string> names; // nombres globales que declara (para poder redefinirlos)
-    bool singleExpr = false;     // es una sola expresión (se guarda como print(...))
+    std::set<std::string> names;
+    bool singleExpr = false;
 };
 
 Shape shapeOf(const std::string& code) {
@@ -57,8 +53,6 @@ Shape shapeOf(const std::string& code) {
     return shape;
 }
 
-// ¿La entrada sigue en la línea siguiente? (paréntesis, corchetes o llaves sin cerrar, texto """
-// o comentario /* sin cerrar, o una línea que acaba en operador)
 bool needsMore(const std::string& code) {
     DiagnosticBag diags;
     Lexer lx(code, diags);
@@ -89,12 +83,11 @@ bool needsMore(const std::string& code) {
     }
 }
 
-// Muestra el valor de la última expresión de una entrada.
 Value showValue(VM& vm, int argc, Value* args) {
     if (argc < 1 || args[0].isNull() || args[0].isUndef()) return Value();
     const Value& v = args[0];
     const char* c = isString(v) ? color::green() : (v.isNum() || v.isBool()) ? color::yellow() : "";
-    if ((vm.output.empty() ? vm.lastOutputChar : vm.output.back()) != '\n') vm.print("\n"); // tras un write() sin salto
+    if ((vm.output.empty() ? vm.lastOutputChar : vm.output.back()) != '\n') vm.print("\n");
     g_shown = true;
     vm.print(std::string(c) + vm.toString(v, true) + color::reset() + "\n");
     return Value();
@@ -114,12 +107,9 @@ public:
         };
     }
 
-    // Compila y ejecuta una entrada. false si tiene errores de compilación (y entonces no se guarda).
     bool eval(const std::string& code) {
         Shape shape = shapeOf(code);
         auto& names = shape.names;
-        // Redefinir: una entrada anterior cuyos nombres se declaran todos de nuevo se sustituye por
-        // líneas vacías (así no cambian los números de línea del resto).
         std::vector<size_t> replaced;
         for (size_t i = 0; i < entries.size(); i++) {
             auto& e = entries[i];
@@ -155,7 +145,7 @@ public:
         if (ok) ok = vm.drainScheduler();
         vm.flushOutput();
         if (vm.lastOutputChar != '\n') {
-            std::fputc('\n', stdout); // que el siguiente "hz>" empiece en su propia línea
+            std::fputc('\n', stdout);
             vm.lastOutputChar = '\n';
         }
         entries.back().failed = !ok || vm.hadUncaught;
@@ -168,8 +158,6 @@ public:
         return true;
     }
 
-    // Código de la sesión. Para un archivo, las expresiones cuyo valor se mostró se escriben como
-    // print(...) y se omiten las entradas que fallaron sin declarar nada.
     std::string code(bool forFile = false) const {
         std::string out;
         for (auto& e : entries) {
@@ -185,7 +173,7 @@ public:
         int shown = 0;
         for (size_t i = 0; i < rs.globals.size() && i < rs.module->globals.size(); i++) {
             const std::string& name = rs.globals[i];
-            if (name.rfind("__", 0) == 0) continue; // internas (desestructuración)
+            if (name.rfind("__", 0) == 0) continue;
             auto it = last->globalSyms.find(name);
             if (it == last->globalSyms.end() || !it->second) continue;
             Symbol* s = it->second;
@@ -196,7 +184,6 @@ public:
                 std::printf("  %s%s%s = %s\n", color::bold(), s->detail.c_str(), color::reset(), val.c_str());
             } else {
                 std::string d = s->detail.empty() ? name : s->detail;
-                // "class Jugador Jugador(nombre: text)" -> "class Jugador": el constructor sobra en la lista
                 size_t p = d.find(" " + name + "(");
                 if ((s->kind == SymKind::Class || s->kind == SymKind::Struct) && p != std::string::npos) {
                     size_t q = d.find(')', p);
@@ -214,18 +201,17 @@ public:
 private:
     struct Entry {
         std::string code;
-        std::set<std::string> names; // globales que declara
-        int firstLine = 1;           // línea de la sesión donde empieza (no cambia nunca)
-        bool removed = false;        // sustituida por una redefinición
-        bool failed = false;         // terminó con un error en ejecución
-        bool printable = false;      // expresión cuyo valor se mostró
+        std::set<std::string> names;
+        int firstLine = 1;
+        bool removed = false;
+        bool failed = false;
+        bool printable = false;
     };
     ReplSession rs;
     std::vector<Entry> entries;
     ModuleUnit* last = nullptr;
     std::string path;
 
-    // Entrada que contiene una línea de la sesión; rel recibe la línea dentro de la entrada.
     const Entry* entryAt(int line, int& rel) const {
         for (auto it = entries.rbegin(); it != entries.rend(); ++it) {
             if (line >= it->firstLine) {
@@ -236,11 +222,10 @@ private:
         return nullptr;
     }
 
-    // Error en ejecución con la línea relativa a la entrada en la que está el código.
     bool runtimeError(const std::string& msg, const std::string& file, int line, int col, const std::vector<std::string>& trace) {
         int rel = 0;
         const Entry* e = file == path ? entryAt(line, rel) : nullptr;
-        if (!e) return false; // error dentro de un módulo importado: formato normal
+        if (!e) return false;
         Diagnostic d;
         d.message = msg;
         d.file = kName;
@@ -266,7 +251,6 @@ private:
         return true;
     }
 
-    // Muestra los errores (y avisos útiles) de la entrada con números de línea propios. true si hay errores.
     bool report(ModuleUnit* unit, const std::string& code, int firstLine) {
         bool errors = false;
         for (auto& d : unit->diags.items) {
@@ -279,7 +263,6 @@ private:
                 local.file = kName;
                 printDiagnostic(stderr, local, code);
             } else if (isError) {
-                // la entrada nueva rompe código anterior (por ejemplo, cambia el tipo de algo que ya se usaba)
                 Diagnostic prev = d;
                 prev.message += " (en el código de una entrada anterior)";
                 prev.loc = {};
@@ -335,7 +318,6 @@ void onSigint(int) { g_interrupt = true; }
 
 enum class Read { Code, End, Cancel };
 
-// Lee una entrada completa (puede ocupar varias líneas).
 Read readEntry(std::string& code, bool interactive) {
     code.clear();
     bool first = true;
@@ -348,7 +330,7 @@ Read readEntry(std::string& code, bool interactive) {
         g_interrupt = false;
         if (!readLine(line)) {
 #ifdef _WIN32
-            if (interactive) Sleep(30); // el aviso de Ctrl+C llega en otro hilo
+            if (interactive) Sleep(30);
 #endif
             if (g_interrupt.exchange(false)) {
                 std::printf("\n");
@@ -357,7 +339,7 @@ Read readEntry(std::string& code, bool interactive) {
             if (!code.empty()) return Read::Code;
             return Read::End;
         }
-        if (!first && trim(line).empty()) return Read::Code; // una línea vacía termina la entrada
+        if (!first && trim(line).empty()) return Read::Code;
         code += first ? line : "\n" + line;
         first = false;
         if (!needsMore(code)) return Read::Code;
@@ -369,7 +351,7 @@ bool isCommand(const std::string& t) {
     return t.size() > 1 && t[0] == '.' && std::isalpha((unsigned char)t[1]);
 }
 
-} // namespace
+}
 
 int runRepl() {
     bool interactive = stdinIsConsole();
@@ -438,4 +420,4 @@ int runRepl() {
     }
 }
 
-} // namespace hz
+}

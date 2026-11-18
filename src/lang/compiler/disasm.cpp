@@ -1,4 +1,3 @@
-// Desensamblador del bytecode de HyperEZ (hyper bytecode archivo.hz).
 #include "lang/compiler/disasm.h"
 #include "lang/compiler/bytecode.h"
 #include "lang/vm/vm.h"
@@ -11,9 +10,6 @@ namespace hz {
 
 namespace {
 
-// Formato de los operandos:
-//   k = u16 constante   n = u16 nombre (constante de texto)   s = u16 hueco local   u = u16 upvalue
-//   g = u16 global      i = u16 entero   b = u8   c = u8 caché   f = u16 salto adelante   B = u16 salto atrás
 struct OpInfo { const char* name; const char* operands; };
 
 OpInfo info(Op op) {
@@ -76,7 +72,7 @@ OpInfo info(Op op) {
         case OP_INVOKE: return {"INVOKE", "nbi"};
         case OP_SUPER_INVOKE: return {"SUPER_INVOKE", "nb"};
         case OP_SUPER_CALL: return {"SUPER_CALL", "b"};
-        case OP_CLOSURE: return {"CLOSURE", "k"}; // + upvalues (ver abajo)
+        case OP_CLOSURE: return {"CLOSURE", "k"};
         case OP_CLOSE_UPVALUE: return {"CLOSE_UPVALUE", ""};
         case OP_RETURN: return {"RETURN", ""};
         case OP_CLASS: return {"CLASS", "nb"};
@@ -194,13 +190,12 @@ void disasmOne(VM& vm, ObjFunction* fn, std::string& out, std::vector<ObjFunctio
                         note += (note.empty() ? "" : "  ") + fn->module->globalNames[v]->str;
                     break;
                 case 'c': args += "[" + std::to_string(v) + "]"; break;
-                case 'f': break; // se escribe al final (el destino depende de todos los operandos)
+                case 'f': break;
                 case 'B': break;
                 default: args += std::to_string(v); break;
             }
         }
         if (truncated) { out += "        ?? instrucción cortada al final del código\n"; return; }
-        // destinos de los saltos
         size_t p2 = at + 1;
         for (const char* k = oi.operands; *k; k++) {
             int n = sizeOf(*k);
@@ -227,7 +222,7 @@ void disasmOne(VM& vm, ObjFunction* fn, std::string& out, std::vector<ObjFunctio
     }
 }
 
-} // namespace
+}
 
 int operandBytes(uint8_t op) {
     if (op >= OP_COUNT || op == OP_CLOSURE) return -1;
@@ -260,4 +255,4 @@ std::string disassemble(VM& vm, ObjFunction* fn, bool recursive) {
     return out;
 }
 
-} // namespace hz
+}

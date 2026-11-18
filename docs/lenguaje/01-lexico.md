@@ -63,12 +63,12 @@ Estas palabras están reservadas y no se pueden usar como nombres:
 
 ```text
 and       as*       async     await     break     catch     class     const
-constructor         continue  do*       else      emit*     enum      event*    extends
-false     finally   for       foreach   from*     function  get*      if
-implements          import    in        interface is        let       match
-new       not       null      on*       once*     or        priority* private
-protected public    repeat    return    set*      static    step*     struct
-super     this      throw     true      try       var       while
+constructor         continue  do*       elif*     else      emit*     enum      event*
+extends   false     finally   fn*       for       foreach   from*     function  get*
+if        implements          import    in        interface is        let       loop*
+match     new       not       null      on*       once*     or        priority* private
+protected public    repeat    return    set*      static    step*     struct    super
+this      throw     true      try       var       while
 ```
 
 Las marcadas con `*` solo son especiales en su contexto (por ejemplo `get` delante de un método): en el resto se pueden usar como nombres.

@@ -1,5 +1,3 @@
-// Módulo auxiliar de las pruebas (los archivos que empiezan por "_" no se ejecutan solos).
-
 /// Objeto que se puede guardar en el inventario.
 struct Objeto { var nombre: text = ""; var peso: number = 1; var valor: number = 0 }
 

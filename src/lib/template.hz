@@ -1,22 +1,8 @@
-// template — plantillas de texto con {{variables}}, condiciones y bucles (correos, informes, páginas web).
-//
-//   import template
-//   var t = "Hola, {{nombre}}. Tienes {{mensajes.length}} mensajes:\n{{#each mensajes}}- {{asunto}}\n{{/each}}"
-//   print(template.render(t, { nombre: "Ana", mensajes: [{ asunto: "Reunión" }, { asunto: "Fotos" }] }))
-//
-// Sintaxis:
-//   {{nombre}}  {{jugador.puntos}}  {{lista.length}}   valor (en HTML se escapa: usa {{{x}}} para no escapar)
-//   {{#if x}} ... {{else}} ... {{/if}}                  condición (x vacío, 0, false o null es falso)
-//   {{#unless x}} ... {{/unless}}                       lo contrario de if
-//   {{#each lista}} ... {{/each}}                       repite; dentro: {{this}}, {{@index}}, {{@first}}, {{@last}} y los campos
-//   {{! comentario }}                                   no aparece en el resultado
-
 /// Valor de una ruta "a.b.c" en el contexto (o null).
 function lookup(contexto: list, ruta: text): any {
     var r = ruta.trim()
     if r == "this" or r == "." { return contexto.last().this }
     var partes = r.split(".")
-    // se busca desde el contexto más interno hacia fuera
     for i in range(contexto.length - 1, -1, -1) {
         var c = contexto[i]
         var v: any = null

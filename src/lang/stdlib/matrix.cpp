@@ -1,7 +1,3 @@
-// Matrix: álgebra lineal en C++ (rápida) para inteligencia artificial, ciencia de datos y gráficos.
-// Admite +, -, * y / (elemento a elemento o con un número), producto de matrices (dot),
-// transpuesta, funciones de activación y reducciones. Las filas o columnas de 1 se expanden
-// automáticamente ("broadcasting"): una matriz n×m más una fila 1×m suma la fila a cada fila.
 #include "lang/stdlib/native.h"
 
 #include <algorithm>
@@ -39,7 +35,6 @@ static Mat fromList(VM& vm, const Value& v, const char* fname) {
     if (!isObjType(v, OT::List)) vm.raise(std::string(fname) + ": se esperaba una lista de filas [[1, 2], [3, 4]]");
     auto& rows = static_cast<ObjList*>(v.o)->items;
     if (rows.empty()) return Mat(0, 0);
-    // Una lista de números es una fila
     if (rows[0].isNum()) {
         Mat m(1, (int)rows.size());
         for (size_t j = 0; j < rows.size(); j++) {
@@ -63,7 +58,6 @@ static Mat fromList(VM& vm, const Value& v, const char* fname) {
     return m;
 }
 
-// Operación elemento a elemento con expansión de filas/columnas de tamaño 1
 template <class F> static Mat broadcast(VM& vm, const Mat& a, const Mat& b, F f, const char* what) {
     int r = std::max(a.rows, b.rows), c = std::max(a.cols, b.cols);
     auto fits = [&](const Mat& m) { return (m.rows == r || m.rows == 1) && (m.cols == c || m.cols == 1); };
@@ -172,7 +166,6 @@ NATIVE(m_dot) {
     Mat& b = asMat(vm, optArg(args, argc, 0), "Matrix.dot");
     if (a.cols != b.rows) vm.raise("Matrix.dot: para multiplicar " + shape(a) + " por " + shape(b) + " las columnas de la primera deben ser las filas de la segunda");
     Mat out(a.rows, b.cols);
-    // orden i-k-j: recorre la memoria en orden (mucho más rápido que i-j-k)
     for (int i = 0; i < a.rows; i++) {
         double* o = &out.d[(size_t)i * out.cols];
         for (int k = 0; k < a.cols; k++) {
@@ -230,12 +223,12 @@ NATIVE(m_sum) {
     Mat& a = M(args);
     Value axis = optArg(args, argc, 0);
     if (axis.isNull()) { double s = 0; for (double x : a.d) s += x; return Value(s); }
-    if (axis.isNum() && axis.n == 0) { // suma de cada columna -> 1×cols
+    if (axis.isNum() && axis.n == 0) {
         Mat out(1, a.cols);
         for (int i = 0; i < a.rows; i++) for (int j = 0; j < a.cols; j++) out.d[j] += a.at(i, j);
         return wrap(vm, std::move(out));
     }
-    if (axis.isNum() && axis.n == 1) { // suma de cada fila -> rows×1
+    if (axis.isNum() && axis.n == 1) {
         Mat out(a.rows, 1);
         for (int i = 0; i < a.rows; i++) for (int j = 0; j < a.cols; j++) out.d[i] += a.at(i, j);
         return wrap(vm, std::move(out));
@@ -292,7 +285,6 @@ NATIVE(m_toString) {
     return vm.str(s);
 }
 
-// Estáticos
 NATIVE(ms_fromList) { return wrap(vm, fromList(vm, optArg(args, argc, 0), "Matrix.fromList")); }
 NATIVE(ms_identity) {
     int n = dim(vm, args, argc, 0, "Matrix.identity");
@@ -304,15 +296,12 @@ NATIVE(ms_random) {
     int r = dim(vm, args, argc, 0, "Matrix.random"), c = dim(vm, args, argc, 1, "Matrix.random");
     double lo = argNum(vm, args, argc, 2, "Matrix.random", -1), hi = argNum(vm, args, argc, 3, "Matrix.random", 1);
     Mat m(r, c);
-    for (auto& x : m.d) x = lo + randomUnit() * (hi - lo); // misma semilla que randomSeed()
+    for (auto& x : m.d) x = lo + randomUnit() * (hi - lo);
     return wrap(vm, std::move(m));
 }
 NATIVE(ms_zeros) { return wrap(vm, Mat(dim(vm, args, argc, 0, "Matrix.zeros"), dim(vm, args, argc, 1, "Matrix.zeros", 1), 0)); }
 NATIVE(ms_ones) { return wrap(vm, Mat(dim(vm, args, argc, 0, "Matrix.ones"), dim(vm, args, argc, 1, "Matrix.ones", 1), 1)); }
 
-// ---- álgebra lineal: determinante, inversa, sistemas de ecuaciones -------------
-
-// Descomposición LU con pivoteo parcial (en el sitio). Devuelve false si la matriz es singular.
 static bool luDecompose(Mat& a, std::vector<int>& perm, int& sign) {
     int n = a.rows;
     perm.resize(n);
@@ -336,7 +325,6 @@ static bool luDecompose(Mat& a, std::vector<int>& perm, int& sign) {
     }
     return true;
 }
-// Resuelve L·U·x = P·b para cada columna de b
 static Mat luSolve(const Mat& lu, const std::vector<int>& perm, const Mat& b) {
     int n = lu.rows;
     Mat x(n, b.cols);
@@ -384,7 +372,7 @@ NATIVE(m_solve) {
     Mat a = M(args);
     needSquare(vm, a, "solve");
     Mat b = isMatrix(vm, optArg(args, argc, 0)) ? asMat(vm, args[0], "solve") : fromList(vm, args[0], "solve");
-    if (b.rows == 1 && b.cols == a.rows && a.rows > 1) { // una lista [b1, b2...] es una columna
+    if (b.rows == 1 && b.cols == a.rows && a.rows > 1) {
         Mat t(b.cols, 1);
         for (int i = 0; i < b.cols; i++) t.d[i] = b.d[i];
         b = t;
@@ -442,7 +430,7 @@ NATIVE(ms_concat) {
     Mat a = isMatrix(vm, optArg(args, argc, 0)) ? asMat(vm, args[0], "Matrix.concat") : fromList(vm, args[0], "Matrix.concat");
     Mat b = isMatrix(vm, optArg(args, argc, 1)) ? asMat(vm, args[1], "Matrix.concat") : fromList(vm, args[1], "Matrix.concat");
     int axis = (int)argNum(vm, args, argc, 2, "Matrix.concat", 0);
-    if (axis == 0) { // una debajo de la otra
+    if (axis == 0) {
         if (a.cols != b.cols) vm.raise("Matrix.concat: para unir filas hacen falta las mismas columnas (" + shape(a) + " y " + shape(b) + ")");
         Mat m(a.rows + b.rows, a.cols);
         std::copy(a.d.begin(), a.d.end(), m.d.begin());
@@ -505,7 +493,6 @@ void registerMatrix(VM& vm) {
                     "Valores aleatorios uniformes (usa la semilla de randomSeed).", ms_random);
     vm.defineStatic(c, "zeros", "(filas: number, columnas?: number = 1): Matrix", "Matriz de ceros.", ms_zeros);
     vm.defineStatic(c, "ones", "(filas: number, columnas?: number = 1): Matrix", "Matriz de unos.", ms_ones);
-    // álgebra lineal
     vm.defineMethod(c, "det", "(): number", "Determinante (matriz cuadrada).", m_det);
     vm.defineMethod(c, "inverse", "(): Matrix", "Matriz inversa (error si el determinante es 0).", m_inverse);
     vm.defineMethod(c, "solve", "(b: Matrix|list): Matrix",
@@ -520,4 +507,4 @@ void registerMatrix(VM& vm) {
                     "Une dos matrices: eje 0 una debajo de otra, eje 1 una al lado de otra.", ms_concat);
 }
 
-} // namespace hz
+}

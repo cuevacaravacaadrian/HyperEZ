@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<language id="hyperez" name="HyperEZ" version="2.0" _section="Source">
+  <metadata>
+    <property name="mimetypes">text/x-hyperez</property>
+    <property name="globs">*.hez;*.hz</property>
+    <property name="line-comment-start">//</property>
+    <property name="block-comment-start">/*</property>
+    <property name="block-comment-end">*/</property>
+  </metadata>
+  <styles>
+    <style id="comment" name="Comment" map-to="def:comment"/>
+    <style id="doc-comment" name="Documentation comment" map-to="def:doc-comment"/>
+    <style id="string" name="String" map-to="def:string"/>
+    <style id="escape" name="Escape" map-to="def:special-char"/>
+    <style id="interpolation" name="Interpolation" map-to="def:special-constant"/>
+    <style id="number" name="Number" map-to="def:number"/>
+    <style id="keyword" name="Keyword" map-to="def:keyword"/>
+    <style id="control" name="Control" map-to="def:statement"/>
+    <style id="constant" name="Constant" map-to="def:special-constant"/>
+    <style id="type" name="Type" map-to="def:type"/>
+    <style id="builtin" name="Builtin" map-to="def:builtin"/>
+  </styles>
+  <definitions>
+    <context id="escape" style-ref="escape">
+      <match>\\(u\{[0-9A-Fa-f]+\}|u[0-9A-Fa-f]{4}|.)</match>
+    </context>
+    <context id="interpolation" style-ref="interpolation">
+      <start>\$\{</start>
+      <end>\}</end>
+    </context>
+    <context id="string-double" style-ref="string" end-at-line-end="true">
+      <start>"</start>
+      <end>"</end>
+      <include>
+        <context ref="escape"/>
+        <context ref="interpolation"/>
+      </include>
+    </context>
+    <context id="string-single" style-ref="string" end-at-line-end="true">
+      <start>'</start>
+      <end>'</end>
+      <include>
+        <context ref="escape"/>
+        <context ref="interpolation"/>
+      </include>
+    </context>
+    <context id="number" style-ref="number">
+      <match extended="true">\b(0[xX][0-9A-Fa-f_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*(\.[0-9_]+)?([eE][+-]?[0-9]+)?)\b</match>
+    </context>
+    <context id="control" style-ref="control">
+      <keyword>if</keyword>
+      <keyword>else</keyword>
+      <keyword>elif</keyword>
+      <keyword>match</keyword>
+      <keyword>for</keyword>
+      <keyword>foreach</keyword>
+      <keyword>in</keyword>
+      <keyword>while</keyword>
+      <keyword>repeat</keyword>
+      <keyword>loop</keyword>
+      <keyword>do</keyword>
+      <keyword>break</keyword>
+      <keyword>continue</keyword>
+      <keyword>return</keyword>
+      <keyword>await</keyword>
+      <keyword>throw</keyword>
+      <keyword>try</keyword>
+      <keyword>catch</keyword>
+      <keyword>finally</keyword>
+      <keyword>step</keyword>
+    </context>
+    <context id="keywords" style-ref="keyword">
+      <keyword>var</keyword>
+      <keyword>let</keyword>
+      <keyword>const</keyword>
+      <keyword>function</keyword>
+      <keyword>fn</keyword>
+      <keyword>class</keyword>
+      <keyword>struct</keyword>
+      <keyword>interface</keyword>
+      <keyword>enum</keyword>
+      <keyword>event</keyword>
+      <keyword>constructor</keyword>
+      <keyword>import</keyword>
+      <keyword>from</keyword>
+      <keyword>as</keyword>
+      <keyword>extends</keyword>
+      <keyword>implements</keyword>
+      <keyword>public</keyword>
+      <keyword>private</keyword>
+      <keyword>protected</keyword>
+      <keyword>static</keyword>
+      <keyword>async</keyword>
+      <keyword>get</keyword>
+      <keyword>set</keyword>
+      <keyword>and</keyword>
+      <keyword>or</keyword>
+      <keyword>not</keyword>
+      <keyword>is</keyword>
+      <keyword>new</keyword>
+      <keyword>on</keyword>
+      <keyword>once</keyword>
+      <keyword>emit</keyword>
+      <keyword>priority</keyword>
+    </context>
+    <context id="constants" style-ref="constant">
+      <keyword>true</keyword>
+      <keyword>false</keyword>
+      <keyword>null</keyword>
+      <keyword>this</keyword>
+      <keyword>super</keyword>
+    </context>
+    <context id="types" style-ref="type">
+      <keyword>number</keyword>
+      <keyword>int</keyword>
+      <keyword>float</keyword>
+      <keyword>double</keyword>
+      <keyword>text</keyword>
+      <keyword>string</keyword>
+      <keyword>char</keyword>
+      <keyword>bool</keyword>
+      <keyword>boolean</keyword>
+      <keyword>list</keyword>
+      <keyword>array</keyword>
+      <keyword>map</keyword>
+      <keyword>dict</keyword>
+      <keyword>set</keyword>
+      <keyword>any</keyword>
+      <keyword>object</keyword>
+      <keyword>void</keyword>
+      <keyword>null</keyword>
+      <keyword>function</keyword>
+      <keyword>Function</keyword>
+      <keyword>Task</keyword>
+      <keyword>Promise</keyword>
+      <keyword>Range</keyword>
+      <keyword>Event</keyword>
+      <keyword>Subscription</keyword>
+    </context>
+    <context id="builtins" style-ref="builtin">
+      <keyword>print</keyword>
+      <keyword>println</keyword>
+      <keyword>write</keyword>
+      <keyword>input</keyword>
+      <keyword>len</keyword>
+      <keyword>typeof</keyword>
+      <keyword>str</keyword>
+      <keyword>toNumber</keyword>
+      <keyword>toInt</keyword>
+      <keyword>assert</keyword>
+      <keyword>assertEqual</keyword>
+      <keyword>assertThrows</keyword>
+      <keyword>test</keyword>
+      <keyword>exit</keyword>
+      <keyword>range</keyword>
+      <keyword>time</keyword>
+      <keyword>now</keyword>
+      <keyword>wait</keyword>
+      <keyword>nextFrame</keyword>
+      <keyword>spawn</keyword>
+      <keyword>delay</keyword>
+      <keyword>tick</keyword>
+      <keyword>warn</keyword>
+      <keyword>createEvent</keyword>
+      <keyword>off</keyword>
+      <keyword>abs</keyword>
+      <keyword>sqrt</keyword>
+      <keyword>pow</keyword>
+      <keyword>floor</keyword>
+      <keyword>ceil</keyword>
+      <keyword>round</keyword>
+      <keyword>sign</keyword>
+      <keyword>min</keyword>
+      <keyword>max</keyword>
+      <keyword>clamp</keyword>
+      <keyword>lerp</keyword>
+      <keyword>sin</keyword>
+      <keyword>cos</keyword>
+      <keyword>tan</keyword>
+      <keyword>asin</keyword>
+      <keyword>acos</keyword>
+      <keyword>atan</keyword>
+      <keyword>atan2</keyword>
+      <keyword>hypot</keyword>
+      <keyword>exp</keyword>
+      <keyword>log</keyword>
+      <keyword>log10</keyword>
+      <keyword>radians</keyword>
+      <keyword>degrees</keyword>
+      <keyword>random</keyword>
+      <keyword>randomInt</keyword>
+      <keyword>randomChoice</keyword>
+      <keyword>randomSeed</keyword>
+      <keyword>remap</keyword>
+      <keyword>wrap</keyword>
+      <keyword>approach</keyword>
+      <keyword>smoothstep</keyword>
+      <keyword>chance</keyword>
+      <keyword>distance</keyword>
+      <keyword>isNaN</keyword>
+      <keyword>awaitAll</keyword>
+      <keyword>awaitAny</keyword>
+      <keyword>parseInt</keyword>
+      <keyword>gcd</keyword>
+      <keyword>lcm</keyword>
+      <keyword>factorial</keyword>
+      <keyword>isPrime</keyword>
+      <keyword>primes</keyword>
+      <keyword>divisors</keyword>
+      <keyword>cbrt</keyword>
+      <keyword>trunc</keyword>
+      <keyword>fract</keyword>
+      <keyword>sinh</keyword>
+      <keyword>cosh</keyword>
+      <keyword>tanh</keyword>
+      <keyword>randomGaussian</keyword>
+      <keyword>noise</keyword>
+      <keyword>chr</keyword>
+      <keyword>ord</keyword>
+      <keyword>Console</keyword>
+      <keyword>File</keyword>
+      <keyword>System</keyword>
+      <keyword>JSON</keyword>
+      <keyword>Vec2</keyword>
+      <keyword>Vec3</keyword>
+      <keyword>Color</keyword>
+      <keyword>Error</keyword>
+      <keyword>EventData</keyword>
+      <keyword>HyperCore</keyword>
+      <keyword>HyperMath</keyword>
+      <keyword>Process</keyword>
+      <keyword>Path</keyword>
+      <keyword>Time</keyword>
+      <keyword>Bytes</keyword>
+      <keyword>Hash</keyword>
+      <keyword>Base64</keyword>
+      <keyword>Regex</keyword>
+      <keyword>Http</keyword>
+      <keyword>Matrix</keyword>
+      <keyword>Image</keyword>
+      <keyword>ProcessHandle</keyword>
+    </context>
+    <context id="hyperez" class="no-spell-check">
+      <include>
+        <context id="doc-comment" style-ref="doc-comment" end-at-line-end="true">
+          <start>///</start>
+        </context>
+        <context ref="def:c-like-comment" style-ref="comment"/>
+        <context ref="def:c-like-comment-multiline" style-ref="comment"/>
+        <context ref="string-double"/>
+        <context ref="string-single"/>
+        <context ref="number"/>
+        <context ref="control"/>
+        <context ref="keywords"/>
+        <context ref="constants"/>
+        <context ref="types"/>
+        <context ref="builtins"/>
+      </include>
+    </context>
+  </definitions>
+</language>

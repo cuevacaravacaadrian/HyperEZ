@@ -1,4 +1,3 @@
-// Biblioteca estándar del núcleo: funciones globales y métodos de los tipos integrados.
 #include "lang/vm/vm.h"
 
 #include <algorithm>
@@ -9,10 +8,6 @@
 #include <random>
 
 namespace hz {
-
-// ---------------------------------------------------------------------------
-// Ayudas para argumentos
-// ---------------------------------------------------------------------------
 
 static std::string argWhere(const char* fname, int i) { return std::string(fname) + ": el argumento " + std::to_string(i + 1); }
 
@@ -66,10 +61,10 @@ Value optField(VM& vm, ObjMap* opts, const char* key) {
 
 std::mt19937_64& randomEngine() { static std::mt19937_64 r(std::random_device{}()); return r; }
 static std::mt19937_64& rng() { return randomEngine(); }
-double randomUnit() { return (double)(randomEngine()() >> 11) * (1.0 / 9007199254740992.0); } // 53 bits
+double randomUnit() { return (double)(randomEngine()() >> 11) * (1.0 / 9007199254740992.0); }
 long long randomBetween(long long lo, long long hi) {
     if (hi <= lo) return lo;
-    uint64_t span = (uint64_t)(hi - lo) + 1, limit = UINT64_MAX - UINT64_MAX % span; // sin sesgo
+    uint64_t span = (uint64_t)(hi - lo) + 1, limit = UINT64_MAX - UINT64_MAX % span;
     uint64_t x;
     do x = randomEngine()(); while (x >= limit);
     return lo + (long long)(x % span);
@@ -78,10 +73,6 @@ static double rand01() { return randomUnit(); }
 
 #define NATIVE(name) static Value name(VM& vm, int argc, Value* args)
 #define UNUSED (void)vm; (void)argc; (void)args
-
-// ---------------------------------------------------------------------------
-// Globales
-// ---------------------------------------------------------------------------
 
 NATIVE(n_print) {
     std::string s;
@@ -113,7 +104,7 @@ NATIVE(n_len) {
     if (isObjType(v, OT::Range)) return Value(static_cast<ObjRange*>(v.o)->count());
     if (isObjType(v, OT::Enum)) return Value((double)static_cast<ObjEnum*>(v.o)->values.size());
     if (isObjType(v, OT::Instance) || isObjType(v, OT::Foreign)) {
-        Value n = vm.getProperty(v, vm.s_length, true); // clases con propiedad length (Bytes, propias...)
+        Value n = vm.getProperty(v, vm.s_length, true);
         if (n.isNum()) return n;
     }
     vm.raise("len: no se puede medir un valor de tipo " + vm.typeName(v));
@@ -145,11 +136,7 @@ NATIVE(n_assert) {
 }
 NATIVE(n_exit) {
     vm.flushOutput();
-#ifdef __EMSCRIPTEN__
-    throw ProgramExit{argc > 0 && args[0].isNum() ? (int)args[0].n : 0};
-#else
     std::exit(argc > 0 && args[0].isNum() ? (int)args[0].n : 0);
-#endif
 }
 NATIVE(n_range) {
     double a = argNum(vm, args, argc, 0, "range");
@@ -161,6 +148,12 @@ NATIVE(n_range) {
     return Value::object(vm.newRange(a, b, step, false));
 }
 NATIVE(n_time) { UNUSED; return Value(vm.currentTime()); }
+NATIVE(n_warn) {
+    std::string s = "aviso: ";
+    for (int i = 0; i < argc; i++) { if (i) s += ' '; s += vm.toString(args[i]); }
+    vm.warn(s);
+    return Value();
+}
 NATIVE(n_now) {
     UNUSED;
     using namespace std::chrono;
@@ -185,6 +178,13 @@ NATIVE(n_spawn) {
     vm.completeTask(t, r);
     return Value::object(t);
 }
+NATIVE(n_createEvent) {
+    auto* ev = vm.alloc<ObjEvent>();
+    ev->name = vm.intern(argStr(vm, args, argc, 0, "createEvent"));
+    if (argc > 1 && isObjType(args[1], OT::List))
+        for (auto& v : static_cast<ObjList*>(args[1].o)->items) ev->params.push_back(vm.intern(vm.toString(v)));
+    return Value::object(ev);
+}
 NATIVE(n_off) {
     UNUSED;
     if (isObjType(args[0], OT::Subscription)) { static_cast<ObjSubscription*>(args[0].o)->active = false; static_cast<ObjSubscription*>(args[0].o)->event->needsCleanup = true; return Value(); }
@@ -198,7 +198,6 @@ NATIVE(n_off) {
     vm.raise("off: necesita una suscripción o un evento");
 }
 
-// Matemáticas
 #define MATH1(fname, expr)                                     \
     NATIVE(n_##fname) {                                        \
         double x = argNum(vm, args, argc, 0, #fname);          \
@@ -230,10 +229,6 @@ NATIVE(n_round) {
     double m = std::pow(10.0, d);
     return Value(std::round(x * m) / m);
 }
-// format(valor, "formato"): el mismo miniformato que "${valor:formato}"
-//   [[relleno]alineación][+][0][ancho][, o _][.precisión][tipo]
-//   alineación < > ^ · tipos: f (decimales), e (científica), % (porcentaje), d (entero),
-//   x X (hexadecimal), b (binario), o (octal), s (texto)
 static size_t utf8CharLen(unsigned char c) { return c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1; }
 static std::string groupDigits(const std::string& digits, char sep) {
     std::string out;
@@ -315,7 +310,7 @@ NATIVE(n_format) {
         }
     } else {
         body = isString(v) ? vm.toString(v) : vm.toString(v);
-        if (prec >= 0) { // ".5" en un texto: como mucho 5 caracteres
+        if (prec >= 0) {
             size_t pos = 0;
             for (int k = 0; k < prec && pos < body.size(); k++) pos += utf8CharLen((unsigned char)body[pos]);
             body = body.substr(0, pos);
@@ -380,7 +375,6 @@ NATIVE(n_randomChoice) {
 }
 NATIVE(n_randomSeed) { rng().seed((uint64_t)argNum(vm, args, argc, 0, "randomSeed")); return Value(); }
 
-// Error
 NATIVE(n_Error) {
     ObjInstance* e = vm.newInstance(vm.errorClass);
     vm.tempRoots.push_back(Value::object(e));
@@ -390,10 +384,6 @@ NATIVE(n_Error) {
     return Value::object(e);
 }
 
-// ---------------------------------------------------------------------------
-// text
-// ---------------------------------------------------------------------------
-
 static const std::string& S(Value* args) { return asString(args[-1])->str; }
 
 NATIVE(t_length) { UNUSED; return Value((double)utf8Length(S(args))); }
@@ -401,7 +391,6 @@ NATIVE(t_upper) {
     UNUSED;
     std::string r = S(args);
     for (auto& c : r) c = (char)std::toupper((unsigned char)c);
-    // Vocales acentuadas y ñ comunes (UTF-8 de 2 bytes, latin-1 suplementario)
     for (size_t i = 0; i + 1 < r.size(); i++)
         if ((unsigned char)r[i] == 0xC3 && (unsigned char)r[i + 1] >= 0xA0 && (unsigned char)r[i + 1] <= 0xBE && (unsigned char)r[i + 1] != 0xB7) r[i + 1] = (char)((unsigned char)r[i + 1] - 0x20);
     return vm.str(r);
@@ -422,7 +411,6 @@ NATIVE(t_split) {
     ObjList* out = vm.newList();
     vm.tempRoots.push_back(Value::object(out));
     if (argc == 0 || args[0].isNull()) {
-        // por espacios
         size_t i = 0;
         while (i < s.size()) {
             while (i < s.size() && std::isspace((unsigned char)s[i])) i++;
@@ -461,7 +449,7 @@ NATIVE(t_indexOf) {
     const auto& s = S(args);
     std::string sub = argStr(vm, args, argc, 0, "indexOf");
     double from = argNum(vm, args, argc, 1, "indexOf", 0);
-    size_t start = from <= 0 ? 0 : utf8Offset(s, (size_t)from); // posición en caracteres, no en bytes
+    size_t start = from <= 0 ? 0 : utf8Offset(s, (size_t)from);
     if (start > s.size()) return Value(-1);
     return Value(byteToChar(s, s.find(sub, start)));
 }
@@ -531,10 +519,6 @@ NATIVE(t_count) {
     for (size_t p = s.find(sub); p != std::string::npos; p = s.find(sub, p + sub.size())) n++;
     return Value(n);
 }
-
-// ---------------------------------------------------------------------------
-// list
-// ---------------------------------------------------------------------------
 
 static ObjList* L(Value* args) { return static_cast<ObjList*>(args[-1].o); }
 
@@ -609,7 +593,7 @@ NATIVE(l_join) {
 }
 NATIVE(l_shuffle) {
     UNUSED;
-    auto& it = L(args)->items; // Fisher-Yates con randomBetween: mismo orden en todos los sistemas
+    auto& it = L(args)->items;
     for (size_t i = it.size(); i > 1; i--) std::swap(it[i - 1], it[(size_t)randomBetween(0, (long long)i - 1)]);
     return args[-1];
 }
@@ -628,7 +612,6 @@ NATIVE(l_sum) {
 NATIVE(l_min) { UNUSED; auto it = L(args)->items; if (it.empty()) return Value(); ObjList tmp; tmp.items = it; Value a = Value::object(&tmp); return minmax(vm, 1, &a, false, "min"); }
 NATIVE(l_max) { UNUSED; auto it = L(args)->items; if (it.empty()) return Value(); ObjList tmp; tmp.items = it; Value a = Value::object(&tmp); return minmax(vm, 1, &a, true, "max"); }
 
-// Métodos con funciones de orden superior: copiamos los datos antes de llamar al script.
 NATIVE(l_map) {
     Value fn = args[0];
     std::vector<Value> items = L(args)->items;
@@ -733,10 +716,6 @@ NATIVE(l_unique) {
     return Value::object(r);
 }
 
-// ---------------------------------------------------------------------------
-// map / set
-// ---------------------------------------------------------------------------
-
 static ObjMap* M(Value* args) { return static_cast<ObjMap*>(args[-1].o); }
 
 NATIVE(m_length) { UNUSED; return Value((double)M(args)->live); }
@@ -789,10 +768,6 @@ NATIVE(n_set) {
     vm.tempRoots.pop_back();
     return Value::object(s);
 }
-
-// ---------------------------------------------------------------------------
-// number, Range, Task, Event, Subscription, function, Enum
-// ---------------------------------------------------------------------------
 
 NATIVE(num_toFixed) {
     double x = args[-1].n;
@@ -890,10 +865,6 @@ NATIVE(err_toString) {
 
 NATIVE(evd_stop) { UNUSED; static_cast<ObjInstance*>(args[-1].o)->fields[3] = Value::boolean(true); return Value(); }
 NATIVE(evd_prevent) { UNUSED; static_cast<ObjInstance*>(args[-1].o)->fields[4] = Value::boolean(true); return Value(); }
-
-// ---------------------------------------------------------------------------
-// JSON
-// ---------------------------------------------------------------------------
 
 static void jsonWrite(VM& vm, const Value& v, std::string& out, int indent, int depth) {
     auto nl = [&](int d) { if (indent > 0) { out += '\n'; out += std::string(d * indent, ' '); } };
@@ -1084,12 +1055,7 @@ NATIVE(json_parse) {
     return v;
 }
 
-// ---------------------------------------------------------------------------
-// Registro
-// ---------------------------------------------------------------------------
-
 void registerStdlib(VM& vm) {
-    // Globales
     vm.defineGlobalFn("print", "(...valores: any): void", "Muestra valores en la consola separados por espacios, con salto de línea.", n_print, "print(\"Hola\", nombre)");
     vm.defineGlobalFn("println", "(...valores: any): void", "Igual que print.", n_print);
     vm.defineGlobalFn("write", "(...valores: any): void", "Muestra valores sin salto de línea.", n_write);
@@ -1103,13 +1069,17 @@ void registerStdlib(VM& vm) {
     vm.defineGlobalFn("exit", "(codigo?: number): void", "Termina el programa inmediatamente.", n_exit);
     vm.defineGlobalFn("range", "(inicio: number, fin?: number, paso?: number = 1): Range", "Crea un rango de números (fin excluido).", n_range);
     vm.defineGlobalFn("time", "(): number", "Segundos transcurridos desde que empezó el programa (o el juego).", n_time);
+    vm.defineGlobalFn("tick", "(): number", "Igual que time(): segundos desde que empezó el programa, con decimales. Sirve para medir tiempos.", n_time);
+    vm.defineGlobalFn("warn", "(...valores: any): void", "Muestra un aviso en amarillo por la salida de errores (no detiene el programa).", n_warn, "warn(\"Quedan pocas vidas:\", vidas)");
     vm.defineGlobalFn("now", "(): number", "Hora actual del sistema en segundos desde 1970 (con milisegundos).", n_now);
     vm.defineGlobalFn("wait", "(segundos: number): Task", "Tarea que se completa tras N segundos. Úsala con await dentro de funciones async.", n_wait, "await wait(1.5)");
     vm.defineGlobalFn("nextFrame", "(): Task", "Tarea que se completa en el siguiente fotograma.", n_nextFrame, "await nextFrame()");
     vm.defineGlobalFn("spawn", "(funcion: function, ...args: any): Task", "Ejecuta una función (normalmente async) en segundo plano y devuelve su tarea.", n_spawn);
+    vm.defineGlobalFn("createEvent", "(nombre: text, campos?: list): Event",
+                      "Crea un evento nuevo en tiempo de ejecución. Dentro de una clase es más cómodo declarar 'event nombre(campos)'.",
+                      n_createEvent, "var golpe = createEvent(\"golpe\", [\"danio\"])");
     vm.defineGlobalFn("off", "(suscripcion: any): void", "Cancela una suscripción de 'on', o todas las de un evento.", n_off);
     vm.defineGlobalFn("set", "(...valores: any): set", "Crea un conjunto (valores sin repetir).", n_set, "var vistos = set(1, 2, 3)");
-    // Matemáticas
     vm.defineGlobalFn("abs", "(x: number): number", "Valor absoluto.", n_abs);
     vm.defineGlobalFn("sqrt", "(x: number): number", "Raíz cuadrada.", n_sqrt);
     vm.defineGlobalFn("pow", "(base: number, exponente: number): number", "Potencia.", n_pow);
@@ -1121,7 +1091,7 @@ void registerStdlib(VM& vm) {
             "Da formato a un valor como \"${valor:formato}\": \".2f\" (2 decimales), \">8\" (a la derecha en 8), \"^8\" (centrado), "
             "\",\" (miles), \"08.3f\", \"+\", \"%\" (porcentaje), \"x\" (hexadecimal), \"b\" (binario), \"e\" (científica).",
             n_format, "format(3.14159, \".2f\")  // \"3.14\"");
-        vm.builtins[vm.builtinSlot("__format")] = Value::object(f); // lo usa "${x:.2f}" (no se puede tapar con una función propia)
+        vm.builtins[vm.builtinSlot("__format")] = Value::object(f);
     }
     vm.defineGlobalFn("sign", "(x: number): number", "-1, 0 o 1 según el signo.", n_sign);
     vm.defineGlobalFn("min", "(...valores: number|list): number", "El menor de los valores (o de una lista).", n_min);
@@ -1150,7 +1120,6 @@ void registerStdlib(VM& vm) {
     vm.defineGlobal("E", Value(M_E), "number", "Número e ≈ 2.71828");
     vm.defineGlobal("INFINITY", Value(INFINITY), "number", "Infinito");
 
-    // Error
     vm.nativeClass("Error", "Error lanzable con throw. Campos: message, name, stack, file, line, column.", n_Error, "(mensaje?: text, tipo?: text)");
     vm.defineMethod(vm.errorClass, "toString", "(): text", "Texto 'Tipo: mensaje'.", err_toString);
     for (const char* f : {"message", "name", "file"}) vm.addCatalogField(vm.errorClass, f, "text", "");
@@ -1158,7 +1127,6 @@ void registerStdlib(VM& vm) {
     vm.addCatalogField(vm.errorClass, "line", "number", "");
     vm.addCatalogField(vm.errorClass, "column", "number", "");
 
-    // EventData
     vm.nativeClass("EventData", "Datos que recibe un manejador 'on'. Además de estos campos tiene uno por cada parámetro del evento.");
     vm.defineMethod(vm.eventDataClass, "stopPropagation", "(): void", "Detiene el despacho: los manejadores siguientes no se ejecutan.", evd_stop);
     vm.defineMethod(vm.eventDataClass, "preventDefault", "(): void", "Marca el evento para que el emisor no haga su acción por defecto.", evd_prevent);
@@ -1168,7 +1136,6 @@ void registerStdlib(VM& vm) {
     vm.addCatalogField(vm.eventDataClass, "data", "list", "Todos los valores emitidos, en orden.");
     vm.addCatalogField(vm.eventDataClass, "defaultPrevented", "bool", "true si se llamó a preventDefault().");
 
-    // text
     ObjClass* t = vm.textClass;
     vm.defineClassProp(t, "length", "number", "Número de caracteres.", t_length);
     vm.defineMethod(t, "upper", "(): text", "Texto en mayúsculas.", t_upper);
@@ -1195,7 +1162,6 @@ void registerStdlib(VM& vm) {
     vm.defineMethod(t, "reverse", "(): text", "Texto al revés.", t_reverse);
     vm.defineMethod(t, "count", "(sub: text): number", "Cuántas veces aparece sub.", t_count);
 
-    // list
     ObjClass* l = vm.listClass;
     vm.defineClassProp(l, "length", "number", "Número de elementos.", l_length);
     vm.defineMethod(l, "add", "(...elementos: any): list", "Añade elementos al final.", l_push);
@@ -1234,7 +1200,6 @@ void registerStdlib(VM& vm) {
     vm.defineMethod(l, "sortBy", "(clave: function): list", "Ordena en el sitio por clave(x).", l_sortBy);
     vm.defineMethod(l, "unique", "(): list", "Copia sin elementos repetidos.", l_unique);
 
-    // map y set
     ObjClass* m = vm.mapClass;
     vm.defineClassProp(m, "length", "number", "Número de entradas.", m_length);
     vm.defineMethod(m, "keys", "(): list", "Lista de claves.", m_keys);
@@ -1262,12 +1227,10 @@ void registerStdlib(VM& vm) {
     vm.defineMethod(s, "copy", "(): set", "Copia.", m_copy);
     vm.defineMethod(s, "forEach", "(f: function): void", "Llama a f(valor).", m_forEach);
 
-    // number
     vm.defineMethod(vm.numberClass, "toFixed", "(decimales?: number = 0): text", "Texto con N decimales fijos.", num_toFixed);
     vm.defineMethod(vm.numberClass, "isInteger", "(): bool", "¿No tiene decimales?", num_isInteger);
     vm.defineMethod(vm.numberClass, "toText", "(): text", "Convierte en texto.", num_toText);
 
-    // Range
     vm.defineClassProp(vm.rangeClass, "start", "number", "Inicio.", r_start);
     vm.defineClassProp(vm.rangeClass, "end", "number", "Fin.", r_end);
     vm.defineClassProp(vm.rangeClass, "step", "number", "Paso.", r_step);
@@ -1275,7 +1238,6 @@ void registerStdlib(VM& vm) {
     vm.defineMethod(vm.rangeClass, "toList", "(): list<number>", "Lista con todos los números.", r_toList);
     vm.defineMethod(vm.rangeClass, "contains", "(x: number): bool", "¿Está x en el rango?", r_contains);
 
-    // Task
     vm.defineClassProp(vm.taskClass, "done", "bool", "¿Ha terminado (bien, con error o cancelada)?", task_done);
     vm.defineClassProp(vm.taskClass, "failed", "bool", "¿Terminó con error?", task_failed);
     vm.defineClassProp(vm.taskClass, "result", "any", "Resultado (si terminó bien).", task_result);
@@ -1283,25 +1245,21 @@ void registerStdlib(VM& vm) {
     vm.defineMethod(vm.taskClass, "cancel", "(): bool", "Cancela la tarea (cooperativo: se detiene en su siguiente await).", task_cancel);
     vm.defineMethod(vm.taskClass, "then", "(f: function): Task", "Llama a f(resultado) cuando termine bien.", task_then);
 
-    // Event y Subscription
     vm.defineClassProp(vm.eventClass, "name", "text", "Nombre del evento.", ev_name);
     vm.defineClassProp(vm.eventClass, "listenerCount", "number", "Número de manejadores activos.", ev_count);
     vm.defineMethod(vm.eventClass, "clear", "(): void", "Quita todos los manejadores.", ev_clear);
     vm.defineMethod(vm.subscriptionClass, "cancel", "(): void", "Deja de escuchar el evento.", sub_cancel);
     vm.defineClassProp(vm.subscriptionClass, "active", "bool", "¿Sigue activa?", sub_active);
 
-    // function
     vm.defineClassProp(vm.functionClass, "name", "text", "Nombre de la función.", fn_name);
     vm.defineMethod(vm.functionClass, "call", "(...args: any): any", "Llama a la función con los argumentos.", fn_call);
 
-    // Enum
     vm.defineMethod(vm.enumClass, "values", "(): list", "Todos los valores del enum en orden.", en_values);
     vm.defineClassProp(vm.enumClass, "count", "number", "Cantidad de valores.", en_count);
     vm.defineClassProp(vm.enumClass, "name", "text", "Nombre del enum.", en_name);
     vm.defineMethod(vm.enumClass, "fromName", "(nombre: text): any", "Valor con ese nombre (o null).", en_fromName);
     vm.defineMethod(vm.enumClass, "fromValue", "(valor: any): any", "Valor con ese valor asociado (o null).", en_fromValue);
 
-    // JSON
     ObjModule* json = vm.nativeModule("JSON", "Convertir datos a texto JSON y viceversa.");
     vm.defineFn(json, "stringify", "(valor: any, sangria?: number = 0): text", "Convierte un valor en texto JSON.", json_stringify, "JSON.stringify({vida: 3}, 2)");
     vm.defineFn(json, "parse", "(texto: text): any", "Convierte texto JSON en mapas, listas, números...", json_parse);
@@ -1310,4 +1268,4 @@ void registerStdlib(VM& vm) {
     vm.defineLibrary("HyperCore", {"JSON", "File", "System", "Console"}, "Núcleo: tipos, texto, colecciones, JSON, archivos, sistema, consola, tareas y eventos.");
 }
 
-} // namespace hz
+}

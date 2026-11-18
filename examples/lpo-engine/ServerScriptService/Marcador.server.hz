@@ -1,0 +1,35 @@
+import ReplicatedStorage.Config
+
+fn crearMarcador(jugador: any) {
+    var stats = Folder(jugador)
+    stats.name = "leaderstats"
+    var monedas = NumberValue(stats)
+    monedas.name = "Monedas"
+    monedas.value = DataStore.get("monedas:${jugador.name}", 0)
+}
+
+fn darMonedas(jugador: any, racha: number) {
+    var monedas = jugador.find("leaderstats").find("Monedas")
+    monedas.value += Config.premio(racha)
+    DataStore.set("monedas:${jugador.name}", monedas.value)
+}
+
+on game.players.playerAdded as e {
+    crearMarcador(e.player)
+    print("Bienvenido, ${e.player.name}")
+}
+
+on game.players.playerRemoving as e {
+    print("${e.player.name} se va con ${e.player.findDescendant("Monedas").value} monedas")
+}
+
+var ana = game.players.join("Ana")
+var luis = game.players.join("Luis")
+for racha in 0..5 { darMonedas(ana, racha) }
+darMonedas(luis, 0)
+
+var ranking = game.players.getPlayers().sortBy(p => -p.findDescendant("Monedas").value)
+foreach i, p in ranking {
+    print("${i + 1}. ${p.name}: ${p.findDescendant("Monedas").value}")
+}
+game.players.leave(luis)

@@ -1,20 +1,13 @@
-// Image: imágenes en memoria (RGBA de 8 bits) para generar gráficos, gráficas, mapas, texturas,
-// miniaturas o banners. Dibuja con transparencia, escribe texto con fuentes TrueType y lee y guarda
-// PNG, JPG, BMP y TGA. Usa las bibliotecas stb (third_party/stb).
 #include "lang/stdlib/native.h"
 #include "lang/stdlib/mathtypes.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <memory>
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_TRUETYPE_IMPLEMENTATION
-#define STBI_WINDOWS_UTF8
-#define STBIW_WINDOWS_UTF8
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
@@ -27,6 +20,8 @@
 #pragma GCC diagnostic pop
 #endif
 
+extern "C" unsigned char* stbi_zlib_compress(unsigned char* data, int data_len, int* out_len, int quality);
+
 namespace hz {
 
 extern const unsigned char kDefaultFont[];
@@ -34,7 +29,7 @@ extern const unsigned long kDefaultFont_size;
 
 struct Img {
     int w = 0, h = 0;
-    std::vector<uint8_t> px; // RGBA
+    std::vector<uint8_t> px;
     Img() = default;
     Img(int w_, int h_) : w(w_), h(h_), px((size_t)w_ * h_ * 4, 0) {}
     uint8_t* at(int x, int y) { return &px[((size_t)y * w + x) * 4]; }
@@ -59,7 +54,6 @@ static C8 colorArg(VM& vm, Value* args, int argc, int i, const char* fname, C8 d
     return {q(c.r), q(c.g), q(c.b), q(c.a)};
 }
 
-// Mezcla un color sobre un píxel con una cobertura extra (0..255) para el texto y los bordes suaves.
 static inline void blend(Img& im, int x, int y, C8 c, int cover = 255) {
     if (x < 0 || y < 0 || x >= im.w || y >= im.h) return;
     uint8_t* d = im.at(x, y);
@@ -148,7 +142,6 @@ NATIVE(im_line) {
     C8 c = colorArg(vm, args, argc, 4, "Image.line");
     double width = std::max(1.0, argNum(vm, args, argc, 5, "Image.line", 1));
     double r = width / 2;
-    // Distancia de cada píxel al segmento, con borde suavizado
     int minx = (int)std::floor(std::min(x0, x1) - r - 1), maxx = (int)std::ceil(std::max(x0, x1) + r + 1);
     int miny = (int)std::floor(std::min(y0, y1) - r - 1), maxy = (int)std::ceil(std::max(y0, y1) + r + 1);
     double dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy;
@@ -178,8 +171,6 @@ NATIVE(im_circle) {
     return args[-1];
 }
 
-// ---- texto ----------------------------------------------------------------
-
 struct Font {
     std::vector<unsigned char> data;
     stbtt_fontinfo info{};
@@ -202,7 +193,6 @@ static Font* loadFont(VM& vm, const std::string& path) {
     cache[path] = std::move(f);
     return raw;
 }
-// Dibuja (si im no es nulo) y devuelve el ancho en píxeles.
 static double drawText(Img* im, Font* font, const std::string& text, double x, double y, double size, C8 c) {
     float scale = stbtt_ScaleForPixelHeight(&font->info, (float)size);
     int ascent, descent, gap;
@@ -257,8 +247,6 @@ NATIVE(im_textWidth) {
     Font* f = loadFont(vm, argStr(vm, args, argc, 2, "Image.textWidth", ""));
     return Value(drawText(nullptr, f, t, 0, 0, size, {}));
 }
-
-// ---- transformaciones -----------------------------------------------------
 
 NATIVE(im_paste) {
     Img& dst = I(args);
@@ -355,7 +343,6 @@ NATIVE(im_save) {
     if (!ok) vm.raise("Image.save: no se puede escribir '" + p + "'");
     return Value();
 }
-// ---- más dibujo y filtros ---------------------------------------------------------
 
 NATIVE(im_ellipse) {
     Img& im = I(args);
@@ -367,7 +354,7 @@ NATIVE(im_ellipse) {
         for (int x = std::max(0, (int)(cx - rx - 2)); x <= std::min(im.w - 1, (int)(cx + rx + 2)); x++) {
             double dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
             double r = std::sqrt(dx * dx + dy * dy);
-            double px = r * std::min(rx, ry); // distancia aproximada en píxeles al borde
+            double px = r * std::min(rx, ry);
             double edge = std::min(rx, ry);
             double cover = filled ? std::clamp(edge + 0.5 - px, 0.0, 1.0) : std::clamp(1.0 - std::fabs(px - edge), 0.0, 1.0);
             if (cover > 0) blend(im, x, y, c, (int)(cover * 255));
@@ -375,7 +362,6 @@ NATIVE(im_ellipse) {
     return args[-1];
 }
 
-// Puntos de un polígono: [[x, y], ...], [Vec2, ...] o [x0, y0, x1, y1, ...]
 static std::vector<std::pair<double, double>> pointsArg(VM& vm, const Value& v, const char* fname) {
     if (!isObjType(v, OT::List)) vm.raise(std::string(fname) + ": se esperaba una lista de puntos [[x, y], ...]");
     auto& items = static_cast<ObjList*>(v.o)->items;
@@ -406,7 +392,6 @@ NATIVE(im_polygon) {
     bool filled = argBool(args, argc, 2, true);
     if (pts.size() < 2) return args[-1];
     if (!filled) {
-        // solo el contorno: líneas entre puntos consecutivos (sin suavizado, con grosor 1)
         for (size_t i = 0; i < pts.size(); i++) {
             auto a = pts[i], b = pts[(i + 1) % pts.size()];
             int steps = (int)std::max(std::fabs(b.first - a.first), std::fabs(b.second - a.second)) + 1;
@@ -417,7 +402,6 @@ NATIVE(im_polygon) {
         }
         return args[-1];
     }
-    // relleno por líneas con 4 submuestras verticales para suavizar los bordes
     double ymin = pts[0].second, ymax = ymin;
     for (auto& p : pts) { ymin = std::min(ymin, p.second); ymax = std::max(ymax, p.second); }
     int y0 = std::max(0, (int)std::floor(ymin)), y1 = std::min(im.h - 1, (int)std::ceil(ymax));
@@ -462,7 +446,6 @@ NATIVE(im_gradient) {
     return args[-1];
 }
 
-// Desenfoque: tres pasadas de caja (aproxima un desenfoque gaussiano), separable y O(píxeles)
 static void boxBlurPass(Img& im, int r, bool horizontal) {
     int n = horizontal ? im.w : im.h, lines = horizontal ? im.h : im.w;
     std::vector<int> acc(4);
@@ -500,7 +483,7 @@ NATIVE(im_rotate) {
     for (int y = 0; y < im.h; y++)
         for (int x = 0; x < im.w; x++) {
             int nx, ny;
-            if (q == 1) { nx = im.h - 1 - y; ny = x; }        // 90° en el sentido de las agujas del reloj
+            if (q == 1) { nx = im.h - 1 - y; ny = x; }
             else if (q == 2) { nx = im.w - 1 - x; ny = im.h - 1 - y; }
             else { nx = y; ny = im.w - 1 - x; }
             std::memcpy(out.at(nx, ny), im.at(x, y), 4);
@@ -539,7 +522,6 @@ NATIVE(im_threshold) {
     });
 }
 
-// Bote de pintura: rellena la zona del mismo color (con tolerancia) que contiene (x, y)
 NATIVE(im_floodFill) {
     Img& im = I(args);
     int sx = (int)argNum(vm, args, argc, 0, "Image.floodFill"), sy = (int)argNum(vm, args, argc, 1, "Image.floodFill");
@@ -575,8 +557,6 @@ NATIVE(im_floodFill) {
 
 NATIVE(im_toString) { UNUSED; return vm.str("Image(" + std::to_string(I(args).w) + "×" + std::to_string(I(args).h) + ")"); }
 
-// ---- compresión (zlib) para Bytes --------------------------------------
-
 static std::vector<uint8_t> bytesOf(VM& vm, Value v, const char* fname) {
     if (auto* d = bytesData(vm, v)) return *d;
     vm.raise(std::string(fname) + ": se esperaban Bytes");
@@ -589,9 +569,8 @@ NATIVE(b_compress) {
     bool raw = argBool(args, argc, 1, false);
     unsigned char* z = stbi_zlib_compress(in.data(), (int)in.size(), &outLen, level);
     if (!z) vm.raise("Bytes.compress: no se pudo comprimir");
-    // raw: deflate puro, sin la cabecera zlib (2 bytes) ni la suma Adler-32 (4 bytes), como dentro de los .zip
     Value r = raw && outLen >= 6 ? toBytes(vm, z + 2, (size_t)outLen - 6) : toBytes(vm, z, (size_t)outLen);
-    STBIW_FREE(z);
+    std::free(z);
     return r;
 }
 NATIVE(b_decompress) {
@@ -602,7 +581,7 @@ NATIVE(b_decompress) {
                   : stbi_zlib_decode_malloc((const char*)in.data(), (int)in.size(), &outLen);
     if (!d) vm.raise(raw ? "Bytes.decompress: los datos no son deflate válido" : "Bytes.decompress: los datos no están comprimidos con zlib (Bytes.compress)");
     Value r = toBytes(vm, (const unsigned char*)d, (size_t)outLen);
-    STBI_FREE(d);
+    std::free(d);
     return r;
 }
 
@@ -659,4 +638,4 @@ void registerImage(VM& vm) {
     vm.defineMethod(bytes, "decompress", "(raw?: bool = false): Bytes", "Descomprime datos zlib (o deflate puro con raw = true).", b_decompress);
 }
 
-} // namespace hz
+}

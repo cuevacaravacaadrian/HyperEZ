@@ -1,6 +1,3 @@
-// Árbol de sintaxis abstracta (AST) de HyperEZ.
-// El parser lo construye; el analizador (analyzer.cpp) lo anota con resolución
-// de nombres y tipos; el generador (codegen.cpp) lo convierte en bytecode.
 #pragma once
 
 #include "lang/syntax/lexer.h"
@@ -13,7 +10,7 @@ struct Type;
 using TypeP = std::shared_ptr<Type>;
 
 struct TypeRef {
-    std::string name;            // "number", "list", "Player", "Math.Vec2"...
+    std::string name;
     std::vector<std::unique_ptr<TypeRef>> args;
     bool nullable = false;
     SrcLoc loc;
@@ -24,28 +21,24 @@ using TypeRefP = std::unique_ptr<TypeRef>;
 enum class Visibility : uint8_t { Public, Private, Protected };
 enum class DeclKind : uint8_t { Var, Let, Const };
 
-// ---- Resolución de nombres (rellenada por el analizador) --------------------
-
 enum class VarKind : uint8_t {
     Unresolved,
-    Local,      // índice = slot en la pila del marco
-    Upvalue,    // índice = upvalue de la clausura
-    Global,     // índice = global del módulo
-    Builtin,    // índice = global integrado (prelude/motor)
-    ThisMember, // this.<nombre>; thisRes indica cómo cargar `this`
-    StaticMember, // <Clase>.<nombre>; classRes indica cómo cargar la clase
+    Local,
+    Upvalue,
+    Global,
+    Builtin,
+    ThisMember,
+    StaticMember,
 };
 
 struct Resolution {
     VarKind kind = VarKind::Unresolved;
     int index = -1;
-    VarKind thisKind = VarKind::Unresolved; // para ThisMember: Local/Upvalue
+    VarKind thisKind = VarKind::Unresolved;
     int thisIndex = -1;
-    VarKind classKind = VarKind::Unresolved; // para StaticMember: Global/Builtin
+    VarKind classKind = VarKind::Unresolved;
     int classIndex = -1;
 };
-
-// ---- Expresiones -----------------------------------------------------------
 
 enum class ExprKind : uint8_t {
     Number, String, Bool, Null, Ident, This, Super, List, Map, Unary, Binary, Logical, Ternary,
@@ -55,7 +48,7 @@ enum class ExprKind : uint8_t {
 struct Expr {
     ExprKind kind;
     SrcLoc loc;
-    TypeP type; // inferido por el analizador
+    TypeP type;
     explicit Expr(ExprKind k, SrcLoc l) : kind(k), loc(l) {}
     virtual ~Expr() = default;
 };
@@ -67,7 +60,6 @@ struct FuncDecl;
 
 struct NumberExpr : Expr { double value; bool isInt; NumberExpr(SrcLoc l, double v, bool i) : Expr(ExprKind::Number, l), value(v), isInt(i) {} };
 struct StringExpr : Expr {
-    // Si no hay interpolación, parts tiene un único literal.
     struct Part { bool isExpr = false; std::string text; ExprP expr; };
     std::vector<Part> parts;
     StringExpr(SrcLoc l) : Expr(ExprKind::String, l) {}
@@ -82,19 +74,17 @@ struct IdentExpr : Expr {
     IdentExpr(SrcLoc l, std::string n) : Expr(ExprKind::Ident, l), name(std::move(n)) {}
 };
 struct ThisExpr : Expr { Resolution res; ThisExpr(SrcLoc l) : Expr(ExprKind::This, l) {} };
-// super.metodo  (la llamada super(...) es CallExpr con callee SuperExpr y member vacío)
 struct SuperExpr : Expr { std::string member; Resolution thisRes; SuperExpr(SrcLoc l) : Expr(ExprKind::Super, l) {} };
 struct ListExpr : Expr { std::vector<ExprP> items; std::vector<bool> spread; ListExpr(SrcLoc l) : Expr(ExprKind::List, l) {} };
 struct MapExpr : Expr {
-    std::vector<std::pair<ExprP, ExprP>> entries; // clave (StringExpr si era identificador), valor
+    std::vector<std::pair<ExprP, ExprP>> entries;
     MapExpr(SrcLoc l) : Expr(ExprKind::Map, l) {}
 };
 struct UnaryExpr : Expr { Tok op; ExprP operand; UnaryExpr(SrcLoc l, Tok o, ExprP e) : Expr(ExprKind::Unary, l), op(o), operand(std::move(e)) {} };
 struct BinaryExpr : Expr {
-    Tok op; ExprP left, right; bool negate = false; // negate: "not in"
+    Tok op; ExprP left, right; bool negate = false;
     BinaryExpr(SrcLoc l, Tok o, ExprP a, ExprP b) : Expr(ExprKind::Binary, l), op(o), left(std::move(a)), right(std::move(b)) {}
 };
-// and / or / ??
 struct LogicalExpr : Expr {
     Tok op; ExprP left, right;
     LogicalExpr(SrcLoc l, Tok o, ExprP a, ExprP b) : Expr(ExprKind::Logical, l), op(o), left(std::move(a)), right(std::move(b)) {}
@@ -105,13 +95,13 @@ struct CallExpr : Expr {
     ExprP callee;
     std::vector<Arg> args;
     bool isNew = false;
-    bool optional = false; // f?.()
+    bool optional = false;
     bool hasNamed() const { for (auto& a : args) if (!a.name.empty()) return true; return false; }
     CallExpr(SrcLoc l) : Expr(ExprKind::Call, l) {}
 };
 struct MemberExpr : Expr {
     ExprP object; std::string name; SrcLoc nameLoc; bool optional = false;
-    Symbol* sym = nullptr; // miembro resuelto (LSP)
+    Symbol* sym = nullptr;
     MemberExpr(SrcLoc l) : Expr(ExprKind::Member, l) {}
 };
 struct IndexExpr : Expr { ExprP object, index; bool optional = false; IndexExpr(SrcLoc l) : Expr(ExprKind::Index, l) {} };
@@ -120,11 +110,11 @@ struct RangeExpr : Expr { ExprP start, end, step; bool inclusive = false; RangeE
 struct AwaitExpr : Expr { ExprP operand; AwaitExpr(SrcLoc l) : Expr(ExprKind::Await, l) {} };
 struct IsExpr : Expr { ExprP operand; TypeRefP target; bool negate = false; IsExpr(SrcLoc l) : Expr(ExprKind::Is, l) {} };
 struct MatchArm {
-    std::vector<ExprP> patterns; // vacío = else
+    std::vector<ExprP> patterns;
     bool isElse = false;
-    ExprP guard;                 // "if" opcional
-    ExprP body;                  // expresión
-    std::vector<StmtP> block;    // o bloque
+    ExprP guard;
+    ExprP body;
+    std::vector<StmtP> block;
     bool hasBlock = false;
     SrcLoc loc;
 };
@@ -135,15 +125,12 @@ struct MatchExpr : Expr {
 };
 struct AssignExpr : Expr { Tok op; ExprP target, value; AssignExpr(SrcLoc l, Tok o) : Expr(ExprKind::Assign, l), op(o) {} };
 struct IncDecExpr : Expr { ExprP target; bool inc; bool prefix; IncDecExpr(SrcLoc l) : Expr(ExprKind::IncDec, l) {} };
-// on Evento [priority N] [as e] { ... }   (también "once")
 struct OnExpr : Expr {
     ExprP event; ExprP priority; bool once = false;
     std::unique_ptr<FuncDecl> handler;
     OnExpr(SrcLoc l) : Expr(ExprKind::On, l) {}
     ~OnExpr() override;
 };
-
-// ---- Sentencias -------------------------------------------------------------
 
 enum class StmtKind : uint8_t {
     Expr, Var, Block, If, While, ForRange, ForEach, Repeat, Break, Continue, Return,
@@ -157,12 +144,11 @@ struct Stmt {
     virtual ~Stmt() = default;
 };
 
-// Variable local declarada en un bloque (para que codegen sepa qué liberar).
 struct LocalInfo { int slot; bool captured; };
 
 struct ExprStmt : Stmt {
     ExprP expr;
-    bool isBlockValue = false; // última expresión de un caso de match con bloque: es su resultado
+    bool isBlockValue = false;
     ExprStmt(SrcLoc l, ExprP e) : Stmt(StmtKind::Expr, l), expr(std::move(e)) {}
 };
 struct VarStmt : Stmt {
@@ -170,30 +156,28 @@ struct VarStmt : Stmt {
     std::string name; SrcLoc nameLoc;
     TypeRefP typeAnn; ExprP init;
     Visibility vis = Visibility::Public;
-    Resolution res; // dónde vive (Local o Global)
+    Resolution res;
     Symbol* sym = nullptr;
     std::string doc;
     VarStmt(SrcLoc l) : Stmt(StmtKind::Var, l) {}
 };
 struct BlockStmt : Stmt {
     std::vector<StmtP> body;
-    std::vector<LocalInfo> locals; // rellenado por el analizador
+    std::vector<LocalInfo> locals;
     SrcLoc endLoc;
     BlockStmt(SrcLoc l) : Stmt(StmtKind::Block, l) {}
 };
 struct IfStmt : Stmt { ExprP cond; StmtP then; StmtP otherwise; IfStmt(SrcLoc l) : Stmt(StmtKind::If, l) {} };
 struct WhileStmt : Stmt { ExprP cond; StmtP body; WhileStmt(SrcLoc l) : Stmt(StmtKind::While, l) {} };
-// for i in a..b [step s] { }  — bucle numérico optimizado
 struct ForRangeStmt : Stmt {
     std::string var; SrcLoc varLoc;
     ExprP start, end, step; bool inclusive = false;
     StmtP body;
-    int slotCounter = -1, slotEnd = -1, slotStep = -1, slotVar = -1; // contador/fin/paso ocultos + variable visible
+    int slotCounter = -1, slotEnd = -1, slotStep = -1, slotVar = -1;
     bool varCaptured = false;
     Symbol* sym = nullptr;
     ForRangeStmt(SrcLoc l) : Stmt(StmtKind::ForRange, l) {}
 };
-// foreach x in xs { } / for x in xs { } / for i, x in xs { }
 struct ForEachStmt : Stmt {
     std::string var, var2; SrcLoc varLoc, var2Loc;
     ExprP iterable; StmtP body;
@@ -213,7 +197,7 @@ struct TryStmt : Stmt {
     std::string catchVar; SrcLoc catchLoc; TypeRefP catchType;
     std::unique_ptr<BlockStmt> catchBody;
     std::unique_ptr<BlockStmt> finallyBody;
-    std::unique_ptr<FuncDecl> finallyFn; // el analizador envuelve 'finally' en una clausura
+    std::unique_ptr<FuncDecl> finallyFn;
     int catchSlot = -1; bool catchCaptured = false;
     Symbol* catchSym = nullptr;
     TryStmt(SrcLoc l) : Stmt(StmtKind::Try, l) {}
@@ -236,17 +220,16 @@ struct FuncDecl {
     std::string name; SrcLoc loc, nameLoc;
     std::vector<Param> params;
     TypeRefP ret;
-    std::unique_ptr<BlockStmt> body; // o:
-    ExprP exprBody;                  // lambda de expresión: x => x * 2
+    std::unique_ptr<BlockStmt> body;
+    ExprP exprBody;
     bool isAsync = false, isStatic = false;
     Visibility vis = Visibility::Public;
     std::string doc;
-    // Rellenado por el analizador
     std::vector<UpvalueDesc> upvalues;
     int maxSlots = 0;
     bool hasExplicitSuperCall = false;
     bool containsAwait = false;
-    Resolution res;          // dónde se guarda (para declaraciones)
+    Resolution res;
     Symbol* sym = nullptr;
     ClassInfo* owner = nullptr;
 };
@@ -269,10 +252,10 @@ struct ClassStmt : Stmt {
     std::string superName; SrcLoc superLoc; ExprP superExpr;
     std::vector<std::pair<std::string, SrcLoc>> interfaces;
     std::vector<FieldDecl> fields;
-    std::vector<std::unique_ptr<FuncDecl>> methods; // incluye getters/setters/estáticos
+    std::vector<std::unique_ptr<FuncDecl>> methods;
     std::unique_ptr<FuncDecl> ctor;
-    std::unique_ptr<FuncDecl> fieldInit;  // sintetizado por el analizador si hay inicializadores
-    std::unique_ptr<FuncDecl> staticInit; // inicializadores estáticos
+    std::unique_ptr<FuncDecl> fieldInit;
+    std::unique_ptr<FuncDecl> staticInit;
     std::string doc;
     Resolution res;
     Symbol* sym = nullptr;
@@ -311,27 +294,27 @@ struct EventStmt : Stmt {
 struct EmitStmt : Stmt { ExprP event; std::vector<Arg> args; EmitStmt(SrcLoc l) : Stmt(StmtKind::Emit, l) {} };
 
 struct ImportStmt : Stmt {
-    std::string path;        // "HyperAudio", "utils.math" o "./enemigos.hz"
-    bool isFile = false;     // ruta entre comillas
+    std::string path;
+    bool isFile = false;
+    bool importAll = false;
     std::string alias; SrcLoc aliasLoc;
-    std::vector<std::pair<std::string, SrcLoc>> names; // from X import a, b
+    std::vector<std::pair<std::string, SrcLoc>> names;
     std::vector<std::string> nameAliases;
     std::vector<Resolution> nameRes;
     std::vector<Symbol*> nameSyms;
     Resolution res; Symbol* sym = nullptr;
-    std::string resolvedPath; // ruta absoluta de archivo resuelta
+    std::string resolvedPath;
     ImportStmt(SrcLoc l) : Stmt(StmtKind::Import, l) {}
 };
 
-// Programa (un archivo .hz)
 struct Program {
     std::string file;
     std::string source;
     std::vector<StmtP> body;
     std::vector<Comment> comments;
-    std::unique_ptr<FuncDecl> script; // función de nivel superior sintetizada
+    std::unique_ptr<FuncDecl> script;
     int globalCount = 0;
     std::vector<std::string> globalNames;
 };
 
-} // namespace hz
+}

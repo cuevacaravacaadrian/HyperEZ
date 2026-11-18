@@ -48,6 +48,8 @@ await cuentaAtras(3)
 | `wait(segundos)` | tarea que termina pasado ese tiempo |
 | `nextFrame()` | espera a la siguiente vuelta del planificador |
 | `spawn(funcionAsync)` | lanza una tarea en segundo plano y la devuelve: `.cancel()`, `.done`, `.result`, `.failed`, `.error`, `.then(f)` |
+| `delay(segundos, funcion, ...args)` | ejecuta la función pasado ese tiempo, sin detener el resto, y devuelve su tarea |
+| `tick()` | segundos desde que empezó el programa (como `time()`), para medir duraciones |
 | `awaitAll(tareas)` | espera a todas y devuelve sus resultados en orden |
 | `awaitAny(tareas)` | devuelve el resultado de la primera que termine |
 
@@ -66,6 +68,11 @@ var reloj = spawn(async () => {
 })
 reloj.cancel()
 print("reloj detenido:", reloj.done)
+
+var inicio = tick()
+var aviso = delay(0.05, nombre => "¡${nombre} ha llegado!", "Ana")
+print(await aviso)
+print("tardó más de 0,05 s:", tick() - inicio >= 0.05)
 ```
 
 Un programa no termina mientras queden tareas pendientes. Las tareas avanzan por turnos en un solo hilo: no hace falta preocuparse de bloqueos ni de que dos tareas cambien lo mismo a la vez.

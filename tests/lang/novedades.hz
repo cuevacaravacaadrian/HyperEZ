@@ -1,5 +1,4 @@
 #!/usr/bin/env hyper
-// Novedades de la versión 0.6: desestructuración, textos r"...", la línea #! y operadores en clases.
 
 test("desestructurar listas", () => {
     var [a, b] = [1, 2]

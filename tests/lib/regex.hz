@@ -1,5 +1,3 @@
-// Regex y textos r"..." (sin escapes).
-
 test("textos r\"...\"", () => {
     assertEqual(r"\d+\n", "\\d+\\n")
     assertEqual(r"C:\Users\ana".length, 12)

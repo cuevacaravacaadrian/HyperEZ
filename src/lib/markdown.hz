@@ -1,16 +1,7 @@
-// markdown — convierte texto Markdown en HTML (títulos, listas, enlaces, código, tablas, citas...).
-//
-//   import markdown
-//   var html = markdown.toHtml("# Hola\n\nTexto con **negrita**, *cursiva* y `código`.")
-//   File.write("pagina.html", markdown.page("Mi página", "# Hola\n\n- uno\n- dos"))
-//
-// Los bloques ```hz se colorean con { highlight: true } (clases hz-k, hz-s, hz-n, hz-c, hz-t, hz-f; ver HZ_CSS).
-
 function esc(t: text): text { return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;") }
 
 /// Formato dentro de una línea: **negrita**, *cursiva*, `código`, [enlace](url), ![imagen](url), ~~tachado~~.
 function inline(t: text): text {
-    // el código va primero: lo de dentro no se interpreta
     var partes = t.split("`")
     var out = []
     for i in 0..partes.length {
@@ -44,10 +35,6 @@ function cells(l: text): list {
     var t = l.trim()
     return t.substring(1, t.length - 1).split("|").map(c => c.trim())
 }
-
-// ---------------------------------------------------------------------------
-// Colores para el código HyperEZ de los bloques ```hz
-// ---------------------------------------------------------------------------
 
 const HZ_KEYWORDS = set("var", "let", "const", "function", "return", "if", "else", "for", "foreach", "in", "while", "repeat", "break",
                         "continue", "class", "struct", "constructor", "this", "super", "extends", "implements", "interface", "enum",

@@ -1,5 +1,3 @@
-// Laberinto: encuentra el camino más corto con A* (biblioteca algo) y lo dibuja.
-// Ejecuta: hyper laberinto.hz
 import algo
 
 var mapa = ["S....#.........",
@@ -10,7 +8,6 @@ var mapa = ["S....#.........",
             ".#######.#.###.",
             ".........#....G"]
 
-// Buscar las casillas S (salida) y G (meta)
 var inicio: list = []
 var meta: list = []
 for y in 0..mapa.length {

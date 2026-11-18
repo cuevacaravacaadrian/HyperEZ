@@ -1,4 +1,3 @@
-// Analizador sintáctico de HyperEZ (descenso recursivo con recuperación de errores).
 #pragma once
 
 #include "lang/syntax/ast.h"
@@ -10,7 +9,7 @@ public:
     Parser(std::vector<Token> tokens, DiagnosticBag& diags, std::vector<Comment> comments = {});
     std::vector<StmtP> parseProgram();
     StmtP destructure(const Token& kw, Visibility vis, DeclKind kind);
-    ExprP parseStandaloneExpression(); // para interpolaciones y el REPL
+    ExprP parseStandaloneExpression();
 
 private:
     struct ParseError {};
@@ -18,11 +17,11 @@ private:
     size_t p = 0;
     DiagnosticBag& diags;
     std::vector<Comment> comments;
-    std::vector<bool> nlStack{true}; // true: los saltos de línea terminan sentencias
-    std::vector<StmtP> extraStmts;   // sentencias extra que genera una desestructuración (var [a, b] = ...)
+    std::vector<bool> nlStack{true};
+    std::vector<StmtP> extraStmts;
     int destructureCount = 0;
     int comprehensionCount = 0;
-    int indexDepth = 0; // > 0 dentro de obj[...]: se admiten los rangos abiertos lista[2..]
+    int indexDepth = 0;
     int funcDepth = 0;
 
     const Token& cur() const { return toks[p]; }
@@ -41,17 +40,17 @@ private:
     void synchronize();
     std::string docFor(int line);
 
-    // Sentencias
     StmtP statement(bool topLevel);
     StmtP varDecl(Visibility vis);
     std::unique_ptr<FuncDecl> function(FuncKind kind, bool isAsync, Visibility vis, bool isStatic);
     void paramList(std::vector<Param>& params);
     std::unique_ptr<BlockStmt> block();
     StmtP ifStmt();
+    bool atElif() const;
     StmtP whileStmt();
     StmtP doWhileStmt();
-    bool inIsType = false; // leyendo el tipo de "x is Tipo"
-    size_t noLambdaLevel = (size_t)-1; // nivel de nlStack del patrón o la guarda de un match (sin lambdas sueltas)
+    bool inIsType = false;
+    size_t noLambdaLevel = (size_t)-1;
     StmtP forStmt();
     StmtP repeatStmt();
     StmtP returnStmt();
@@ -64,7 +63,6 @@ private:
     StmtP importStmt(bool fromForm);
     TypeRefP type();
 
-    // Expresiones
     ExprP assignment();
     ExprP expression();
     ExprP pipeline();
@@ -99,7 +97,6 @@ private:
     bool continuesOnNewline(const Token& t) const;
 };
 
-// Utilidad: analiza un archivo completo.
 std::unique_ptr<Program> parseSource(const std::string& file, const std::string& source, DiagnosticBag& diags);
 
-} // namespace hz
+}

@@ -1,5 +1,3 @@
-// hyper watch — ejecuta un programa y lo vuelve a ejecutar cada vez que se guarda un archivo .hz
-// de su carpeta (o de sus subcarpetas).
 #include "tools/tools.h"
 
 #include <chrono>
@@ -25,14 +23,13 @@ namespace {
 
 using Snapshot = std::map<fs::path::string_type, fs::file_time_type>;
 
-// Fecha de modificación de cada archivo .hz/.hez (sin entrar en carpetas ocultas, de paquetes o de compilación).
 Snapshot scan(const fs::path& dir) {
     Snapshot out;
     std::error_code ec;
     int visited = 0;
     for (auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec);
          !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
-        if (++visited > 50000) break; // carpeta enorme: no seguir
+        if (++visited > 50000) break;
         std::string name = it->path().filename().string();
         if (it->is_directory(ec)) {
             if (!name.empty() && (name[0] == '.' || name == "node_modules" || name == "hz_packages" || name.rfind("build", 0) == 0))
@@ -52,7 +49,6 @@ std::string timeOfDay() {
     return buf;
 }
 
-// Espera hasta que cambie un archivo o termine el proceso (lo que antes ocurra, como mucho ms).
 struct Watcher {
 #ifdef _WIN32
     HANDLE change = INVALID_HANDLE_VALUE;
@@ -61,10 +57,9 @@ struct Watcher {
                                               FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME);
     }
     ~Watcher() { if (change != INVALID_HANDLE_VALUE) FindCloseChangeNotification(change); }
-    // true si puede haber cambios en los archivos
     bool wait(void* child, bool& childEnded, int& code) {
         childEnded = false;
-        if (change == INVALID_HANDLE_VALUE) { // p. ej. unidades de red: sondeo
+        if (change == INVALID_HANDLE_VALUE) {
             if (child && processFinished(child, 400, code)) childEnded = true;
             else if (!child) Sleep(400);
             return true;
@@ -73,7 +68,7 @@ struct Watcher {
         DWORD w = WaitForMultipleObjects(child ? 2 : 1, hs, FALSE, INFINITE);
         if (w == WAIT_OBJECT_0 + 1) { childEnded = processFinished(child, 0, code); return false; }
         FindNextChangeNotification(change);
-        Sleep(100); // deja que el editor termine de guardar
+        Sleep(100);
         return true;
     }
 #else
@@ -86,7 +81,7 @@ struct Watcher {
 #endif
 };
 
-} // namespace
+}
 
 int runWatch(const std::string& file, const std::vector<std::string>& args) {
     std::string abs = pathAbsolute(file);
@@ -134,4 +129,4 @@ int runWatch(const std::string& file, const std::vector<std::string>& args) {
     }
 }
 
-} // namespace hz
+}

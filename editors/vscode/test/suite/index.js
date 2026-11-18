@@ -1,4 +1,3 @@
-// Prueba de integración: se ejecuta dentro de VS Code (ver test/runTest.js).
 'use strict';
 const vscode = require('vscode');
 const path = require('path');
@@ -84,7 +83,6 @@ async function run() {
   const lensTitles = (lenses || []).map((l) => l.command && l.command.title);
   check('botones ▶ Ejecutar / ⟳ / ✓ encima del código', lensTitles.includes('▶ Ejecutar') && lensTitles.includes('✓ Comprobar'), lensTitles.join(', '));
 
-  // Formato con el servidor de lenguaje (hyper fmt)
   const messy = path.join(dir, 'desordenado.hez');
   fs.writeFileSync(messy, 'if true {\nprint(1)   \n}\n');
   const mdoc = await vscode.workspace.openTextDocument(messy);
@@ -93,7 +91,6 @@ async function run() {
     const e = await vscode.commands.executeCommand('vscode.executeFormatDocumentProvider', mdoc.uri, { tabSize: 4, insertSpaces: true });
     return e && e.length ? e : null;
   }, 15000, 'formato');
-  // VS Code reduce el cambio a lo mínimo: se aplica y se compara el texto final
   const we = new vscode.WorkspaceEdit();
   we.set(mdoc.uri, fmtEdits);
   await vscode.workspace.applyEdit(we);

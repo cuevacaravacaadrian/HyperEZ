@@ -1,5 +1,3 @@
-// Tareas async/await y eventos (on, once, priority, off, stopPropagation).
-
 async function cargar(nombre: text, segundos: number): text {
     await wait(segundos)
     return "cargado " + nombre

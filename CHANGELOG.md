@@ -2,6 +2,58 @@
 
 Todas las versiones de HyperEZ. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [1.0.0] - 2026-11-18
+
+HyperEZ 1.0: es oficialmente el lenguaje de LPO Engine, con toda la API del motor como biblioteca. Instalar HyperEZ ya no instala una aplicación, registra el lenguaje en el sistema y en tus editores. Sintaxis más corta y código fuente limpio.
+
+### Añadido
+
+**Sintaxis**
+- `elif` como forma corta de `else if`.
+- `loop { }`: bucle infinito hasta `break` (igual que `while true`).
+- `fn` como forma corta de `function`, también en métodos, `static fn` y `async fn`.
+- Las tres son contextuales: `elif`, `loop` y `fn` se siguen pudiendo usar como nombres de variables.
+
+**LPO Engine, oficial** ([guía](docs/biblioteca/lpo-engine.md), [referencia](docs/biblioteca/lpo-engine-api.md))
+- Biblioteca `lpo` con toda la API del motor: 78 clases (de `Instance`, `Part` y `Humanoid` a `Sprite2D`, `Tilemap2D` y la interfaz), los servicios `game`, `workspace`, `workspace2D` y `script`, `Game`, `Input`, `Tween`, `Debris`, `DataStore`, `Assets`, `World2D`, `Timer` y 18 enumeraciones, con su ayuda al pasar el ratón.
+- Los scripts del motor (`.server.hz`, `.client.hz`, `.module.hz`) reciben `lpo` sin importar nada, e `import ReplicatedStorage.Config` encuentra los módulos del juego.
+- Fuera del motor, `lpo` simula el juego sin gráficos: jerarquía, eventos, `Tween` con 9 curvas, `Timer`, `DataStore`, `Input`, jugadores y funciones `simulateTouch`, `simulateClick`, `simulateActivate`, `Input.press` y `Game.run` para probar la lógica con `hyper test`.
+- `examples/lpo-engine`: un juego con la estructura del motor (lava, marcador, puerta, controles con `RemoteEvent`, monedas 2D).
+- `tools/gen_lpo.py` genera la biblioteca y la referencia a partir de la API del motor.
+
+**Lenguaje**
+- Eventos en las clases: `event nombre(campos)` da a cada objeto su propio evento (`on pieza.touched as e`, `emit touched(otra)`); `static event` para eventos de la clase.
+- `from módulo import *`.
+- `createEvent(nombre, campos)` crea eventos en tiempo de ejecución.
+- `warn(...valores)`: muestra un aviso en amarillo por la salida de errores sin detener el programa.
+- `delay(segundos, funcion, ...args)`: ejecuta una función pasado un tiempo, en segundo plano, y devuelve su tarea.
+- `tick()`: segundos desde que empezó el programa, para medir duraciones.
+- La gramática oficial colorea `on objeto.evento as e { }`, `fn`, `elif`, `loop` y los integrados nuevos en todos los editores.
+
+**Registro del lenguaje**
+- `HKCU\Software\HyperEZ\Language` en Windows: nombre, versión, extensiones, tipo MIME y las órdenes para ejecutar, comprobar, dar formato y el servidor de lenguaje.
+- Los `.hez` y `.hz` se indexan como texto en Windows Search.
+- Los editores aprenden HyperEZ solos, sin extensiones: **Notepad++, Sublime Text, Vim y Neovim** en Windows; **gedit, GNOME Text Editor, Kate, Vim, Neovim, nano y Sublime Text** en Linux y macOS.
+- `hyper register` y `hyper unregister` hacen todo esto en cualquier sistema (también en macOS) y dicen qué editores han configurado.
+- Sintaxis nuevas en `editors/`: GtkSourceView (`gtksourceview/hyperez.lang`), KSyntaxHighlighting (`kate/hyperez.xml`), nano (`nano/hyperez.nanorc`) y `ftplugin` de Vim (comentarios, sangría y `:make` con `hyper check`).
+
+### Cambiado
+
+- **El instalador de Windows registra el lenguaje en lugar de instalar una aplicación**: sin accesos directos en el menú Inicio ni en el escritorio, y sin abrir nada al terminar. HyperEZ Editor pasa a ser un complemento opcional desmarcado (`/EDITOR` para incluirlo). Al actualizar se quitan los accesos de versiones anteriores.
+- Opciones nuevas del instalador: `/NOEDITORS` y `/EDITOR`. Se retiran `/NOSHORTCUTS`, `/NODESKTOP` y `/OPENEDITOR`.
+- Código fuente sin comentarios de texto (los `///` de documentación se mantienen porque son la ayuda que muestran los editores).
+- Las bibliotecas de terceros que no se usaban (cgltf, dr_mp3, stb_vorbis, DejaVu Sans Mono) ya no están en el repositorio.
+
+### Eliminado
+
+- La web, el editor en el navegador (WebAssembly) y la Academia. La documentación vive en el repositorio y se instala con HyperEZ (también en HTML).
+- *Archivo → Compartir en el editor web* y *Ayuda → HyperEZ en el navegador* de HyperEZ Editor; *Ayuda → HyperEZ en GitHub* sustituye a la web.
+
+### Corregido
+
+- La compilación desde el código fuente buscaba `third_party` y las fuentes en una carpeta `../shared` que no existe en el repositorio.
+- Los paquetes de Linux y macOS copiaban la licencia de DejaVu desde esa misma carpeta inexistente.
+
 ## [0.9.0] - 2026-11-07
 
 HyperEZ compila a código máquina: ya se puede escribir un sistema operativo en HyperEZ, y HyperEZX es el primero. Además, la Academia HyperEZ para aprender jugando, con certificado verificable, y una web nueva.

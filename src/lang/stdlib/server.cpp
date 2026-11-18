@@ -1,5 +1,3 @@
-// Servidor web (Http.serve) para crear páginas, APIs y servicios con HyperEZ,
-// y procesos en segundo plano (Process.start).
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -89,7 +87,6 @@ struct Request {
     std::vector<std::pair<std::string, std::string>> headers;
 };
 
-// Lee una petición HTTP/1.1 completa (cabeceras + cuerpo según Content-Length).
 static bool readRequest(sock_t c, Request& r) {
     std::string buf;
     char tmp[8192];
@@ -176,7 +173,6 @@ struct Response {
     std::vector<std::pair<std::string, std::string>> headers;
 };
 
-// Sirve un archivo de la carpeta estática (sin salir de ella).
 static bool staticFile(const std::string& root, const std::string& urlPath, Response& out) {
     if (root.empty() || urlPath.find("..") != std::string::npos) return false;
     std::string rel = urlPath;
@@ -239,7 +235,7 @@ NATIVE(http_serve) {
     if (handler.isNull() && root.empty()) vm.raise("Http.serve: falta la función que responde (o la opción static con una carpeta)");
     if (!netInit()) vm.raise("Http.serve: no se pudo iniciar la red");
 #ifndef _WIN32
-    std::signal(SIGPIPE, SIG_IGN); // un cliente que cierra antes de tiempo no debe terminar el programa
+    std::signal(SIGPIPE, SIG_IGN);
 #endif
 
     sock_t s = socket(AF_INET, SOCK_STREAM, 0);
@@ -274,8 +270,6 @@ NATIVE(http_serve) {
         if (select((int)s + 1, &set, nullptr, nullptr, &tv) <= 0) continue;
         sock_t c = accept(s, nullptr, nullptr);
         if (c == kBadSock) continue;
-        // los navegadores abren conexiones de reserva que no envían nada: sin un límite, el servidor (que atiende de
-        // una en una) se quedaría esperando en una y no contestaría a las demás
 #ifdef _WIN32
         DWORD espera = 1500;
         setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, (const char*)&espera, sizeof espera);
@@ -320,14 +314,12 @@ NATIVE(http_serve) {
         closeSock(c);
         served++;
         if (!quiet) vm.print(req.method + " " + req.target + " -> " + std::to_string(resp.status) + "\n");
-        vm.flushOutput(); // lo que escriba el manejador (print) se ve al momento, no al parar el servidor
+        vm.flushOutput();
     }
     closeSock(s);
     g_interrupt = false;
     return Value(served);
 }
-
-// ---- Process.start ----------------------------------------------------------
 
 struct ChildProc {
     void* handle = nullptr;
@@ -336,7 +328,7 @@ struct ChildProc {
 };
 static void freeChild(void* p) {
     auto* c = static_cast<ChildProc*>(p);
-    if (!c->finished) endProcess(c->handle, false); // se suelta el control; el proceso sigue
+    if (!c->finished) endProcess(c->handle, false);
     delete c;
 }
 static ChildProc& CP(Value* args) { return *static_cast<ChildProc*>(static_cast<ObjForeign*>(args[-1].o)->ptr); }
@@ -405,4 +397,4 @@ void registerServer(VM& vm) {
     vm.defineClassProp(ph, "running", "bool", "¿Sigue en marcha?", ph_running);
 }
 
-} // namespace hz
+}

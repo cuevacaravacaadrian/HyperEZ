@@ -1,7 +1,6 @@
-// Integración con Windows: asociación de archivos .hz/.hez, PATH del usuario y accesos directos.
-// Todo se escribe en HKEY_CURRENT_USER, así que no hace falta ser administrador.
 #ifdef _WIN32
 #include "tools/platform/winshell.h"
+#include "core/version.h"
 
 #include <shlobj.h>
 #include <shobjidl.h>
@@ -92,7 +91,6 @@ std::wstring findVSCode() {
     c.push_back(knownFolder(FOLDERID_ProgramFiles) + L"\\Microsoft VS Code\\Code.exe");
     c.push_back(knownFolder(FOLDERID_ProgramFilesX86) + L"\\Microsoft VS Code\\Code.exe");
     for (auto& p : c) if (exists(p)) return p;
-    // instalación registrada en "Abrir con"
     std::wstring cmd;
     if (getValue(HKEY_CURRENT_USER, L"Software\\Classes\\Applications\\Code.exe\\shell\\open\\command", L"", cmd) ||
         getValue(HKEY_LOCAL_MACHINE, L"Software\\Classes\\Applications\\Code.exe\\shell\\open\\command", L"", cmd)) {
@@ -125,10 +123,9 @@ bool registerFileTypes(const std::wstring& exe0, bool install, const std::wstrin
     std::wstring iconFile = iconFile0.empty() ? exe : backslashes(iconFile0);
     const std::wstring prog = classes + L"\\HyperEZ.Source";
     const std::wstring app = classes + L"\\Applications\\hyper.exe";
-    const std::wstring here = classes + L"\\Directory\\Background\\shell\\HyperEZ"; // "Abrir HyperEZ aquí"
-    const std::wstring edProg = classes + L"\\HyperEZ.Editor";                       // "Abrir con > HyperEZ Editor"
+    const std::wstring here = classes + L"\\Directory\\Background\\shell\\HyperEZ";
+    const std::wstring edProg = classes + L"\\HyperEZ.Editor";
     const std::wstring edApp = classes + L"\\Applications\\hyperez-editor.exe";
-    // HyperEZ Editor se instala junto a hyper.exe
     std::wstring hzEditor;
     {
         size_t slash = exe.find_last_of(L'\\');
@@ -166,7 +163,6 @@ bool registerFileTypes(const std::wstring& exe0, bool install, const std::wstrin
     ok &= setValue(root, prog + L"\\shell\\open", L"", L"Ejecutar con HyperEZ");
     ok &= setValue(root, prog + L"\\shell\\open", L"Icon", q);
     ok &= setValue(root, prog + L"\\shell\\open\\command", L"", q + L" run --pause \"%1\"");
-    // Editar: con HyperEZ Editor si está instalado; además, con VS Code si existe
     std::wstring vscode = findVSCode();
     if (!hzEditor.empty()) {
         std::wstring qe = L"\"" + hzEditor + L"\"";
@@ -202,7 +198,6 @@ bool registerFileTypes(const std::wstring& exe0, bool install, const std::wstrin
     ok &= setValue(root, prog + L"\\shell\\watch", L"", L"Ejecutar y repetir al guardar (HyperEZ)");
     ok &= setValue(root, prog + L"\\shell\\watch", L"Icon", q);
     ok &= setValue(root, prog + L"\\shell\\watch\\command", L"", q + L" watch \"%1\"");
-    // Clic derecho en el fondo de una carpeta: consola interactiva en esa carpeta
     ok &= setValue(root, here, L"", L"Abrir HyperEZ aquí");
     ok &= setValue(root, here, L"Icon", q);
     ok &= setValue(root, here + L"\\command", L"", q + L" repl");
@@ -211,9 +206,9 @@ bool registerFileTypes(const std::wstring& exe0, bool install, const std::wstrin
         ok &= setValue(root, key, L"", L"HyperEZ.Source");
         ok &= setValue(root, key, L"Content Type", L"text/x-hyperez");
         ok &= setValue(root, key, L"PerceivedType", L"text");
+        ok &= setValue(root, key + L"\\PersistentHandler", L"", L"{5e941d80-bf96-11cd-b579-08002b30bfeb}");
         ok &= setValue(root, key + L"\\OpenWithProgids", L"HyperEZ.Source", L"");
         if (!hzEditor.empty()) ok &= setValue(root, key + L"\\OpenWithProgids", L"HyperEZ.Editor", L"");
-        // Clic derecho > Nuevo > Programa HyperEZ: solo para .hez (la extensión por defecto) para que no salga dos veces
         if (std::wstring(ext) == L".hez") ok &= setValue(root, key + L"\\ShellNew", L"NullFile", L"");
         else deleteTree(root, key + L"\\ShellNew");
     }
@@ -222,14 +217,34 @@ bool registerFileTypes(const std::wstring& exe0, bool install, const std::wstrin
     ok &= setValue(root, app + L"\\shell\\open\\command", L"", q + L" run --pause \"%1\"");
     ok &= setValue(root, app + L"\\SupportedTypes", L".hz", L"");
     ok &= setValue(root, app + L"\\SupportedTypes", L".hez", L"");
-    // Si antes se eligió otro programa para .hz/.hez ("Abrir siempre con..."), Windows guarda esa
-    // elección en UserChoice y tiene prioridad sobre todo lo anterior: se borra para que HyperEZ
-    // sea el programa predeterminado. (Solo en el registro real, no en el de pruebas.)
     if (_wcsicmp(classes.c_str(), L"Software\\Classes") == 0) {
         for (const wchar_t* ext : {L".hz", L".hez"})
             deleteTree(root, std::wstring(L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\") + ext + L"\\UserChoice");
     }
     notifyAssociationsChanged();
+    return ok;
+}
+
+bool registerLanguage(const std::wstring& exe0, bool install, const std::wstring& softwareKey) {
+    const std::wstring key = softwareKey + L"\\Language";
+    if (!install) return deleteTree(HKEY_CURRENT_USER, key);
+    std::wstring exe = backslashes(exe0), q = L"\"" + exe + L"\"";
+    HKEY r = HKEY_CURRENT_USER;
+    bool ok = true;
+    ok &= setValue(r, key, L"", L"HyperEZ");
+    ok &= setValue(r, key, L"Name", L"HyperEZ");
+    ok &= setValue(r, key, L"Version", widen(HYPEREZ_VERSION));
+    ok &= setValue(r, key, L"Extensions", L".hez;.hz");
+    ok &= setValue(r, key, L"ContentType", L"text/x-hyperez");
+    ok &= setValue(r, key, L"ProgID", L"HyperEZ.Source");
+    ok &= setValue(r, key, L"Executable", exe);
+    ok &= setValue(r, key, L"Run", q + L" run \"%1\"");
+    ok &= setValue(r, key, L"Check", q + L" check \"%1\"");
+    ok &= setValue(r, key, L"Format", q + L" fmt \"%1\"");
+    ok &= setValue(r, key, L"LanguageServer", q + L" lsp");
+    ok &= setValue(r, key, L"LineComment", L"//");
+    ok &= setValue(r, key, L"BlockComment", L"/* */");
+    ok &= setValue(r, key, L"Homepage", widen(HYPEREZ_REPO_URL));
     return ok;
 }
 
@@ -266,7 +281,7 @@ bool updateUserPath(const std::wstring& dir, bool add, const std::wstring& envKe
         kept.push_back(p);
     }
     if (add && !present) kept.push_back(backslashes(dir));
-    if (add == present && add) return true; // ya estaba
+    if (add == present && add) return true;
     std::wstring joined;
     for (size_t i = 0; i < kept.size(); i++) { if (i) joined += L';'; joined += kept[i]; }
     bool ok = setValue(HKEY_CURRENT_USER, envKey, L"Path", joined, type == REG_SZ ? REG_SZ : REG_EXPAND_SZ);
@@ -296,18 +311,18 @@ bool createShortcut(const std::wstring& lnk, const std::wstring& target, const s
     return ok;
 }
 
-} // namespace hz::win
+}
 
-// Puente para la CLI (tools.h)
 #include "tools/tools.h"
 namespace hz {
 bool registerFileTypes(const std::string& hyperExe, bool install, const std::wstring& classesRoot, bool quiet) {
     bool ok = win::registerFileTypes(win::widen(hyperExe), install, classesRoot);
+    if (classesRoot == L"Software\\Classes") ok = win::registerLanguage(win::widen(hyperExe), install) && ok;
     if (!quiet) {
         if (ok) std::printf(install ? "✓ Archivos .hz y .hez asociados a %s\n" : "✓ Asociación de .hz y .hez eliminada\n", hyperExe.c_str());
         else std::fprintf(stderr, "No se pudo modificar el registro de Windows\n");
     }
     return ok;
 }
-} // namespace hz
+}
 #endif

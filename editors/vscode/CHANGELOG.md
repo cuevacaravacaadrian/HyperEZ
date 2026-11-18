@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.0.0
+
+- Versión al día con HyperEZ 1.0.0, el lenguaje oficial de LPO Engine: los scripts `.server.hz`, `.client.hz` y `.module.hz` tienen toda la API del motor (autocompletado, ayuda y errores).
+- Colores para `fn`, `elif`, `loop`, `on objeto.evento as e`, eventos en clases y los integrados `warn`, `delay`, `tick` y `createEvent`.
+- Sin enlaces a la web (ya no existe): la documentación está en el repositorio.
+
 ## 0.9.0
 
 - Versión al día con HyperEZ 0.9.0 (con `hyper build`, el compilador a código máquina). Aprende HyperEZ jugando en la [Academia HyperEZ](https://cuevacaravacaadrian.github.io/HyperEZ/aprender.html), con certificado.

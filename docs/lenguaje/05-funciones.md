@@ -13,6 +13,20 @@ print(danio(10), danio(10, 3))
 - Los tipos de los parámetros y del resultado son opcionales.
 - Una función sin `return` (o con `return` solo) devuelve `null`; su tipo es `void`.
 - Las funciones se pueden usar antes de declararlas en el mismo archivo.
+- `fn` es la forma corta de `function`, también en clases y con `async`:
+
+```hz
+fn doble(x: number): number { return x * 2 }
+
+class Contador {
+    var total = 0
+    fn sumar(n: number) { total += n }
+}
+
+var c = Contador()
+c.sumar(doble(4))
+print(c.total) // 8
+```
 
 ## Parámetros
 

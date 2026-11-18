@@ -1,0 +1,25 @@
+import ReplicatedStorage.Config
+
+var lava = Part(workspace)
+lava.name = "Lava"
+lava.anchored = true
+lava.size = Vec3(20, 1, 20)
+lava.color = Config.COLOR_LAVA
+lava.material = Material.Neon
+
+on lava.touched as e {
+    var humanoid = e.other.parent?.findChildOfClass("Humanoid")
+    if humanoid != null {
+        humanoid.takeDamage(Config.DANIO_LAVA)
+    }
+}
+
+var personaje = Model(workspace)
+personaje.name = "Ana"
+var humanoid = Humanoid(personaje)
+var pie = Part(personaje)
+
+on humanoid.healthChanged as e { print("${personaje.name} se quema: vida ${e.health}") }
+on humanoid.died as e { print("${personaje.name} ha caído en la lava") }
+
+repeat 4 { lava.simulateTouch(pie) }

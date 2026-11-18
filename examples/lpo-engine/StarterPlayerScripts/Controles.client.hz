@@ -1,0 +1,30 @@
+var pedirMoneda = RemoteEvent(game.replicatedStorage)
+pedirMoneda.name = "PedirMoneda"
+
+on pedirMoneda.onServerEvent as e {
+    print("El servidor recibe '${e.value}' de ${e.player.name}")
+}
+
+var saltos = 0
+on Input.keyDown as e {
+    match e.key {
+        "Space" => { saltos++ }
+        "F" => { pedirMoneda.fireServer("dame una moneda") }
+        else => {}
+    }
+}
+
+var recorrido = 0
+on Game.update as e {
+    if Input.isKeyDown("W") { recorrido += 16 * e.dt }
+}
+
+game.players.join("Ana")
+Input.press("Space")
+Input.release("Space")
+Input.press("F")
+Input.release("F")
+Input.press("W")
+await Game.run(0.5, 30)
+Input.release("W")
+print("Saltos: ${saltos}, recorrido: ${round(recorrido)} studs")

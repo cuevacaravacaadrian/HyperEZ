@@ -1,10 +1,3 @@
-// mkicon — genera los iconos de HyperEZ a partir de assets/branding/mark.svg.
-// El logotipo es una "H" pixelada formada por rectángulos; se rasteriza con supermuestreo.
-//
-//   mkicon <mark.svg> <carpeta-salida>
-//
-// Produce: hyperez.ico (aplicación), hz-file.ico (documentos .hz/.hez), setup.ico,
-//          hyperez-128.png (extensión de VS Code) y hz-file-32.png.
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
 
@@ -37,7 +30,6 @@ static bool loadMark(const std::string& path) {
     d += 4;
     size_t e = s.find('"', d);
     std::string p = s.substr(d, e - d);
-    // Subtrazados M x y h w v h h -w z: se toma la caja de los puntos visitados.
     float cx = 0, cy = 0;
     Rect cur{1e9f, 1e9f, -1e9f, -1e9f};
     auto touch = [&] { cur.x0 = std::min(cur.x0, cx); cur.y0 = std::min(cur.y0, cy); cur.x1 = std::max(cur.x1, cx); cur.y1 = std::max(cur.y1, cy); };
@@ -56,9 +48,7 @@ static bool loadMark(const std::string& path) {
     return !g_rects.empty();
 }
 
-// ¿El punto (u, v) del lienzo 64x64 cae dentro de la H? (centrada en cx, cy con escala extra k)
 static bool inMark(float u, float v, float k, float ox, float oy) {
-    // la H original ocupa aprox. 44x37 unidades antes de la escala del SVG
     float gx = (u - ox) / (g_scale * k), gy = (v - oy) / (g_scale * k);
     for (auto& r : g_rects) if (gx >= r.x0 && gx < r.x1 && gy >= r.y0 && gy < r.y1) return true;
     return false;
@@ -73,7 +63,6 @@ static bool inRoundRect(float u, float v, float x0, float y0, float x1, float y1
 
 struct RGBA { float r, g, b, a; };
 
-// Composición "encima" en espacio lineal simple.
 static RGBA over(RGBA dst, RGBA src) {
     float a = src.a + dst.a * (1 - src.a);
     if (a <= 0) return {0, 0, 0, 0};
@@ -86,7 +75,6 @@ enum Style { App, File, Setup };
 static RGBA sample(Style st, float u, float v) {
     RGBA c{0, 0, 0, 0};
     const RGBA white{1, 1, 1, 1}, ink{0.067f, 0.067f, 0.067f, 1}, edge{0.62f, 0.64f, 0.68f, 1}, accent{0.30f, 0.56f, 1.0f, 1};
-    // centro de la H en coordenadas del glifo (aprox. 22 x 18.5) para recentrarla
     const float gw = 44, gh = 37;
     if (st == App || st == Setup) {
         if (inRoundRect(u, v, 1, 1, 63, 63, 12)) c = over(c, edge);
@@ -95,22 +83,19 @@ static RGBA sample(Style st, float u, float v) {
         float ox = 32 - gw * g_scale * k / 2, oy = 32 - gh * g_scale * k / 2;
         if (inMark(u, v, k, ox, oy)) c = over(c, ink);
         if (st == Setup) {
-            // flecha de descarga en la esquina
             if (inRoundRect(u, v, 38, 38, 62, 62, 7)) c = over(c, accent);
             bool arrow = (u > 47.5f && u < 52.5f && v > 42 && v < 52) || (v >= 51 && v < 58 && std::abs(u - 50) < (58 - v) * 1.0f);
             if (arrow) c = over(c, white);
         }
         return c;
     }
-    // Documento con esquina doblada
     const float x0 = 9, x1 = 55, y0 = 2, y1 = 62, fold = 15;
     auto inPage = [&](float inset) {
         if (u < x0 + inset || u > x1 - inset || v < y0 + inset || v > y1 - inset) return false;
-        return (u - (x1 - fold)) - (v - y0) <= -inset * 0.4f; // corte diagonal de la esquina
+        return (u - (x1 - fold)) - (v - y0) <= -inset * 0.4f;
     };
     if (inPage(0)) c = over(c, edge);
     if (inPage(1.6f)) c = over(c, white);
-    // pliegue
     if (u > x1 - fold && v < y0 + fold && (u - (x1 - fold)) - (v - y0) > 0 && u < x1 && v > y0) {
         bool inFold = (u - (x1 - fold)) - (v - y0) <= fold && u <= x1 && v >= y0;
         if (inFold && v <= y0 + fold && u >= x1 - fold) c = over(c, edge);
@@ -118,7 +103,6 @@ static RGBA sample(Style st, float u, float v) {
     float k = 0.68f;
     float ox = 32 - gw * g_scale * k / 2, oy = 38 - gh * g_scale * k / 2;
     if (inMark(u, v, k, ox, oy)) c = over(c, ink);
-    // franja de color bajo la H
     if (u > x0 + 7 && u < x1 - 7 && v > 53 && v < 56.5f) c = over(c, accent);
     return c;
 }
@@ -168,7 +152,6 @@ static bool writeFile(const std::string& path, const std::vector<uint8_t>& data)
 static void put16(std::vector<uint8_t>& v, int x) { v.push_back(x & 255); v.push_back((x >> 8) & 255); }
 static void put32(std::vector<uint8_t>& v, uint32_t x) { for (int i = 0; i < 4; i++) v.push_back((x >> (8 * i)) & 255); }
 
-// ICO con una imagen por tamaño. Las pequeñas en BMP de 32 bits (compatibilidad), 256 en PNG.
 static bool writeIco(const std::string& path, Style st) {
     const int sizes[] = {16, 20, 24, 32, 40, 48, 64, 96, 128, 256};
     std::vector<std::vector<uint8_t>> blobs;

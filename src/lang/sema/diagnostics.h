@@ -1,4 +1,3 @@
-// Diagnósticos del compilador: errores, avisos y pistas con ubicación exacta.
 #pragma once
 
 #include "core/common.h"
@@ -9,12 +8,12 @@ enum class Severity { Error, Warning, Info, Hint };
 
 struct Diagnostic {
     Severity severity = Severity::Error;
-    std::string code;     // p. ej. "E0101"
+    std::string code;
     std::string message;
     std::string file;
     SrcLoc loc;
-    std::string hint;     // sugerencia opcional ("¿quisiste decir ...?")
-    std::vector<std::string> tags; // "unnecessary", "deprecated" (para el LSP)
+    std::string hint;
+    std::vector<std::string> tags;
 };
 
 class DiagnosticBag {
@@ -43,11 +42,6 @@ public:
     }
 };
 
-// Imprime un diagnóstico al estilo:
-//   error: mensaje
-//     --> archivo.hz:3:5
-//      3 | código
-//        |     ^^^
 void printDiagnostic(FILE* out, const Diagnostic& d, std::string_view source, const char* labelOverride = nullptr);
 
-} // namespace hz
+}

@@ -1,5 +1,3 @@
-// Image y compresión de Bytes. (Los nombres de color como "red" son la paleta de HyperEZ; aquí se usan colores exactos.)
-
 test("crear, pintar y leer píxeles", () => {
     var im = Image(20, 10, "white")
     assertEqual([im.width, im.height], [20, 10])
@@ -16,7 +14,7 @@ test("crear, pintar y leer píxeles", () => {
 
 test("transparencia, líneas y círculos", () => {
     var im = Image(10, 10, "black")
-    im.rect(0, 0, 10, 10, Color(255, 255, 255, 128))   // blanco al 50 % sobre negro
+    im.rect(0, 0, 10, 10, Color(255, 255, 255, 128))
     var p = im.get(5, 5)
     assert(abs(p.r - 128) <= 1, "mezcla al 50 %: ${p.r}")
     var c = Image(21, 21, "black").circle(10, 10, 8, "#ff0000")

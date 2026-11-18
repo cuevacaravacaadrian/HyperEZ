@@ -1,8 +1,3 @@
-// Extensión de VS Code para HyperEZ.
-// - Cliente del servidor de lenguaje (`hyper lsp`): errores, autocompletado, hover, firmas, renombrar...
-// - Ejecutar (F5), modo watch (se repite al guardar), consola interactiva, comprobar y probar.
-// - Nuevo proyecto, referencia de la API, tareas, barra de estado y muestras de color.
-// - Botones encima del código (CodeLens), formato (hyper fmt), bytecode y abrir en HyperEZ Editor.
 'use strict';
 
 const vscode = require('vscode');
@@ -16,10 +11,6 @@ let statusItem = null;
 let runTerminal = null;
 let replTerminal = null;
 let output = null;
-
-// ---------------------------------------------------------------------------
-// Localizar hyper.exe
-// ---------------------------------------------------------------------------
 
 function exeName() {
   return process.platform === 'win32' ? 'hyper.exe' : 'hyper';
@@ -75,7 +66,6 @@ function hyperVersion(exe) {
   }
 }
 
-// ¿El hyper instalado es al menos de esta versión? (el instalado puede ser más antiguo que la extensión)
 const versionCache = new Map();
 function hyperAtLeast(exe, wanted) {
   if (!versionCache.has(exe)) {
@@ -88,16 +78,11 @@ function hyperAtLeast(exe, wanted) {
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// Iconos de HyperEZ: las carpetas de un proyecto (hypersettings, hypercode, hypertests...) con su icono
-// ---------------------------------------------------------------------------
-
 async function usarIconos() {
   await vscode.workspace.getConfiguration('workbench').update('iconTheme', 'hyperez-iconos', vscode.ConfigurationTarget.Global);
   vscode.window.showInformationMessage('Iconos de HyperEZ activados. Para volver a los de antes: Preferencias → Tema de iconos de archivo.');
 }
 
-// En un proyecto con hypersettings/, ofrecer una vez los iconos de HyperEZ
 function ofrecerIconos(context) {
   if (process.env.HYPEREZ_NO_WELCOME || context.globalState.get('hyperez.iconosOfrecidos')) return;
   if (vscode.workspace.getConfiguration('workbench').get('iconTheme') === 'hyperez-iconos') return;
@@ -107,10 +92,6 @@ function ofrecerIconos(context) {
   vscode.window.showInformationMessage('Este proyecto usa las carpetas de HyperEZ (hypersettings, hypercode, hypertests...). ¿Quieres verlas con sus iconos?',
     'Usar los iconos de HyperEZ', 'No').then((r) => { if (r === 'Usar los iconos de HyperEZ') usarIconos(); });
 }
-
-// ---------------------------------------------------------------------------
-// Servidor de lenguaje
-// ---------------------------------------------------------------------------
 
 async function startClient(context) {
   if (!vscode.workspace.getConfiguration('hyperez').get('languageServer.enabled')) return;
@@ -149,13 +130,9 @@ async function stopClient() {
   if (client) {
     const c = client;
     client = null;
-    try { await c.stop(); } catch { /* ya estaba parado */ }
+    try { await c.stop(); } catch {  }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Ejecución
-// ---------------------------------------------------------------------------
 
 function targetFile(uri) {
   if (uri && uri.fsPath) return uri.fsPath;
@@ -164,7 +141,6 @@ function targetFile(uri) {
   return null;
 }
 
-// Carpeta donde se proponen los programas nuevos: la del espacio de trabajo o Documentos\HyperEZ
 function defaultProgramsDir() {
   const ws = vscode.workspace.workspaceFolders;
   if (ws && ws.length) return ws[0].uri.fsPath;
@@ -172,8 +148,6 @@ function defaultProgramsDir() {
   return fs.existsSync(docs) ? docs : os.homedir();
 }
 
-// Guarda el archivo antes de ejecutarlo. Uno sin título se guarda como .hez (se pregunta dónde).
-// Devuelve la ruta que hay que ejecutar o null si el usuario cancela.
 async function ensureSaved(file) {
   const doc = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === file || d.uri.toString() === file);
   if (doc && doc.isUntitled) {
@@ -185,7 +159,6 @@ async function ensureSaved(file) {
     });
     if (!uri) return null;
     await vscode.workspace.fs.writeFile(uri, Buffer.from(doc.getText(), 'utf8'));
-    // el editor sin título se sustituye por el archivo guardado
     const ed = vscode.window.visibleTextEditors.find((e) => e.document === doc);
     if (ed) {
       await vscode.window.showTextDocument(doc, ed.viewColumn);
@@ -217,8 +190,6 @@ function runInTerminal(context, args, cwd, title) {
   runTerminal.show(false);
 }
 
-// Ejecutar sin guardar (hyper 0.8.2 o posterior): el texto del editor va a un archivo temporal y hyper lo ejecuta
-// como si fuera el de verdad (hyper run --as), con sus importaciones y System.scriptDir.
 function runUnsaved(context, doc) {
   const exe = hyperPath(context);
   if (!exe || !hyperAtLeast(exe, [0, 8, 2])) return false;
@@ -245,7 +216,6 @@ async function cmdRun(context, uri) {
   runInTerminal(context, ['run', '--pause', file], path.dirname(file), 'HyperEZ: ' + path.basename(file));
 }
 
-// Modo watch: ejecuta y vuelve a ejecutar cada vez que se guarda un .hez o .hz de la carpeta.
 async function cmdWatch(context, uri) {
   let file = targetFile(uri);
   if (!file) { vscode.window.showWarningMessage('Abre un archivo .hez o .hz para ejecutarlo en modo watch.'); return; }
@@ -254,7 +224,6 @@ async function cmdWatch(context, uri) {
   runInTerminal(context, ['watch', file], path.dirname(file), 'HyperEZ watch: ' + path.basename(file));
 }
 
-// Consola interactiva: una terminal propia que se reutiliza mientras siga abierta.
 function cmdRepl(context) {
   if (replTerminal) { replTerminal.show(false); return; }
   const exe = requireHyper(context);
@@ -297,7 +266,6 @@ async function cmdTest(context, uri) {
   const root = projectRootFor(file);
   await vscode.workspace.saveAll(false);
   const exe = hyperPath(context);
-  // "hyper test --pause" existe desde la 0.8.1; con uno anterior, sin pausa
   runInTerminal(context, exe && hyperAtLeast(exe, [0, 8, 1]) ? ['test', '--pause'] : ['test'], root, 'HyperEZ: pruebas');
 }
 
@@ -350,7 +318,6 @@ async function cmdShowDocs(context) {
   await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(out));
 }
 
-// Nuevo archivo .hez sin guardar, con un programa de ejemplo
 async function cmdNewFile() {
   const doc = await vscode.workspace.openTextDocument({
     language: 'hyperez',
@@ -360,7 +327,6 @@ async function cmdNewFile() {
   await vscode.window.showTextDocument(doc);
 }
 
-// Carpeta de la instalación de HyperEZ (docs/ y examples/), si existe
 function installDir(context) {
   const exe = hyperPath(context);
   if (!exe) return null;
@@ -389,7 +355,6 @@ async function cmdOpenExamples(context) {
   }
 }
 
-// HyperEZ Editor (Windows): el editor clásico que instala HyperEZ-Setup, junto a hyper.exe
 function editorPath(context) {
   const exe = hyperPath(context);
   if (!exe || process.platform !== 'win32') return null;
@@ -411,7 +376,6 @@ async function cmdOpenInEditor(context, uri) {
   child.unref();
 }
 
-// Instrucciones de la máquina virtual (hyper bytecode) en un documento nuevo
 async function cmdShowBytecode(context, uri) {
   let file = targetFile(uri);
   if (!file) { vscode.window.showWarningMessage('Abre un archivo .hez o .hz.'); return; }
@@ -429,7 +393,6 @@ async function cmdShowBytecode(context, uri) {
   await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true });
 }
 
-// Dar formato: con el servidor de lenguaje (como Mayús+Alt+F) o, si no está, con hyper fmt
 async function cmdFormat(context) {
   const ed = vscode.window.activeTextEditor;
   if (!ed || ed.document.languageId !== 'hyperez') return;
@@ -452,10 +415,6 @@ async function cmdRunTests(context, uri) {
   if (!vscode.workspace.isTrusted) { vscode.window.showWarningMessage('Este espacio de trabajo no es de confianza: no se ejecutan programas.'); return; }
   runInTerminal(context, ['run', '--pause', file], path.dirname(file), 'HyperEZ: pruebas de ' + path.basename(file));
 }
-
-// ---------------------------------------------------------------------------
-// Botones encima del código: ▶ Ejecutar · ⟳ Repetir al guardar · ✓ Comprobar, y ▶ Probar en cada test(...)
-// ---------------------------------------------------------------------------
 
 function codeLensProvider() {
   const changed = new vscode.EventEmitter();
@@ -484,10 +443,6 @@ function codeLensProvider() {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Tareas: { "type": "hyperez", "command": "test" }
-// ---------------------------------------------------------------------------
-
 function taskProvider(context) {
   const make = (def, folder) => {
     const exe = hyperPath(context) || 'hyper';
@@ -515,10 +470,6 @@ function taskProvider(context) {
     },
   };
 }
-
-// ---------------------------------------------------------------------------
-// Muestras de color: "#ff8800", Color(255, 136, 0) y Color.rgb(...)
-// ---------------------------------------------------------------------------
 
 const NAMED = {
   white: [255, 255, 255], black: [0, 0, 0], red: [230, 41, 55], green: [0, 228, 48], blue: [0, 121, 241], yellow: [253, 249, 0],
@@ -573,10 +524,6 @@ function colorProvider() {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Activación
-// ---------------------------------------------------------------------------
-
 function updateStatus(context) {
   const ed = vscode.window.activeTextEditor;
   if (ed && ed.document.languageId === 'hyperez') statusItem.show();
@@ -628,7 +575,6 @@ async function activate(context) {
   context.subscriptions.push(vscode.languages.registerColorProvider({ language: 'hyperez' }, colorProvider()));
   const lenses = codeLensProvider();
   context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'hyperez' }, lenses));
-  // Formato al guardar (ajuste hyperez.formatOnSave)
   context.subscriptions.push(vscode.workspace.onWillSaveTextDocument((e) => {
     if (e.document.languageId !== 'hyperez' || !client) return;
     if (!vscode.workspace.getConfiguration('hyperez').get('formatOnSave')) return;
@@ -651,7 +597,6 @@ async function activate(context) {
   await startClient(context);
   ofrecerIconos(context);
 
-  // La primera vez, la bienvenida con el tutorial
   if (!context.globalState.get('hyperez.welcomed')) {
     await context.globalState.update('hyperez.welcomed', true);
     if (!process.env.HYPEREZ_NO_WELCOME) {

@@ -1,13 +1,7 @@
-"""Genera las gramáticas TextMate de HyperEZ (syntaxes/*.json).
-
-Se mantiene en Python porque las expresiones regulares son más legibles aquí que
-escapadas dentro de JSON. Ejecuta:  python tools/gen_grammar.py
-"""
 import json
 import os
 import sys
 
-# La consola de Windows (y la de GitHub Actions) puede no ser UTF-8: los ✓ y las tildes no deben romper el script
 for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
         _s.reconfigure(encoding="utf-8", errors="replace")
@@ -20,7 +14,7 @@ TYPE = r"(?:[\p{L}_][\p{L}\p{N}_.]*)(?:<[^<>()=]*(?:<[^<>()=]*>[^<>()=]*)*>)?\??
 PRIM = ("number|int|float|double|text|string|char|bool|boolean|list|array|map|dict|set|any|object|void|null|"
         "function|Function|Task|Promise|Range|Event|Subscription")
 BUILTIN_FN = ("print|println|write|input|len|typeof|str|toNumber|toInt|assert|assertEqual|assertThrows|test|exit|range|time|now|"
-              "wait|nextFrame|spawn|off|abs|sqrt|pow|floor|ceil|round|sign|min|max|clamp|lerp|sin|cos|tan|asin|acos|atan|atan2|"
+              "wait|nextFrame|spawn|delay|tick|warn|createEvent|off|abs|sqrt|pow|floor|ceil|round|sign|min|max|clamp|lerp|sin|cos|tan|asin|acos|atan|atan2|"
               "hypot|exp|log|log10|radians|degrees|random|randomInt|randomChoice|randomSeed|remap|wrap|approach|smoothstep|"
               "chance|distance|isNaN|awaitAll|awaitAny|parseInt|gcd|lcm|factorial|isPrime|primes|divisors|cbrt|trunc|fract|"
               "sinh|cosh|tanh|randomGaussian|noise|chr|ord")
@@ -67,7 +61,6 @@ grammar = {
              "beginCaptures": {"0": name("punctuation.definition.comment.hyperez")}},
         ]},
         "strings": {"patterns": [
-            # r"..." y r'...': sin escapes ni interpolación (expresiones regulares, rutas de Windows)
             {"name": "string.quoted.raw.hyperez", "begin": r'\br"', "end": '"|$',
              "beginCaptures": {"0": name("punctuation.definition.string.begin.hyperez")},
              "endCaptures": {"0": name("punctuation.definition.string.end.hyperez")}},
@@ -87,7 +80,6 @@ grammar = {
             "endCaptures": {"0": name("punctuation.section.interpolation.end.hyperez")},
             "patterns": [{"include": "#format-spec"}, {"include": "#nested-braces"}, {"include": "#statements"}],
         },
-        # "${precio:.2f}": el formato que va al final de la interpolación
         "format-spec": {
             "match": r"(:)((?:[^\s{}]?[<>^])?\+?0?\d*[,_]?(?:\.\d+)?[feE%dxXbos]?)(?=\})",
             "captures": {"1": name("punctuation.separator.format.hyperez"), "2": name("constant.other.format-spec.hyperez")},
@@ -115,7 +107,7 @@ grammar = {
              "captures": {"1": name("keyword.control.as.hyperez"), "2": name("variable.other.readwrite.alias.hyperez")}},
         ]},
         "function-decl": {
-            "begin": r"\b(?:(async)\s+)?(?:(static)\s+)?(function)\s+(" + ID + r")\s*(\()",
+            "begin": r"\b(?:(async)\s+)?(?:(static)\s+)?(function|fn)\s+(" + ID + r")\s*(\()",
             "beginCaptures": {"1": name("storage.modifier.async.hyperez"), "2": name("storage.modifier.hyperez"),
                               "3": name("storage.type.function.hyperez"), "4": name("entity.name.function.hyperez"),
                               "5": name("punctuation.definition.parameters.begin.hyperez")},
@@ -166,6 +158,9 @@ grammar = {
         ]},
         "keywords": {"patterns": [
             {"name": "keyword.control.conditional.hyperez", "match": r"\b(?:if|else|match)\b"},
+            {"name": "keyword.control.conditional.hyperez",
+             "match": r"\belif\b(?!\s*(?:[-+*/%?]*=(?!=)|\.|\[|\+\+|--|$))"},
+            {"name": "keyword.control.loop.hyperez", "match": r"\bloop\b(?=\s*\{)"},
             {"name": "keyword.control.loop.hyperez", "match": r"\b(?:for|foreach|in|while|repeat|break|continue)\b"},
             {"name": "keyword.control.loop.hyperez", "match": r"\bstep\b(?=\s*-?[\d(\p{L}_])"},
             {"name": "keyword.control.loop.hyperez", "match": r"\bdo\b(?=\s*\{)"},

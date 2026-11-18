@@ -10,7 +10,7 @@ Es una referencia para quien quiera escribir herramientas o entender el parser (
 programa      = { sentencia NL } ;
 bloque        = "{" { sentencia NL } "}" ;
 
-sentencia     = declaracion | if | while | do_while | for | foreach | repeat | try | match
+sentencia     = declaracion | if | while | loop | do_while | for | foreach | repeat | try | match
               | "return" [ expresion ] | "break" | "continue" | "throw" expresion
               | emit | on | expresion ;
 
@@ -29,14 +29,14 @@ patron        = "[" [ elemento { "," elemento } ] "]"
 elemento      = [ "..." ] NOMBRE ;
 campo         = NOMBRE [ ":" NOMBRE ] ;
 
-funcion       = [ "async" ] "function" NOMBRE parametros [ ":" tipo ] bloque ;
+funcion       = [ "async" ] ( "function" | "fn" ) NOMBRE parametros [ ":" tipo ] bloque ;
 parametros    = "(" [ parametro { "," parametro } ] ")" ;
 parametro     = [ "..." ] NOMBRE [ ":" tipo ] [ "=" expresion ] ;
 
 clase         = ( "class" | "struct" ) NOMBRE [ "extends" NOMBRE ] [ "implements" NOMBRE { "," NOMBRE } ]
                 "{" { miembro NL } "}" ;
 miembro       = [ visibilidad ] [ "static" ] ( variable | metodo | acceso | constructor ) ;
-metodo        = [ "async" ] "function" NOMBRE parametros [ ":" tipo ] bloque ;
+metodo        = [ "async" ] ( "function" | "fn" ) NOMBRE parametros [ ":" tipo ] bloque ;
 acceso        = ( "get" NOMBRE "(" ")" | "set" NOMBRE "(" parametro ")" ) [ ":" tipo ] bloque ;
 constructor   = "constructor" parametros bloque ;
 
@@ -56,8 +56,9 @@ tipo          = ( NOMBRE [ "<" tipo { "," tipo } ">" ] | "(" [ tipo { "," tipo }
 ## Control del flujo
 
 ```ebnf
-if            = "if" expresion bloque [ "else" ( if | bloque ) ] ;
+if            = "if" expresion bloque [ "else" ( if | bloque ) | "elif" expresion bloque [ ... ] ] ;
 while         = "while" expresion bloque ;
+loop          = "loop" bloque ;                            (* "loop" solo es especial delante de '{' *)
 do_while      = "do" bloque "while" expresion ;           (* "do" solo es especial delante de '{' *)
 for           = "for" NOMBRE [ "," NOMBRE ] "in" expresion [ "step" expresion ] bloque ;
 foreach       = "foreach" NOMBRE [ "," NOMBRE ] "in" expresion bloque ;

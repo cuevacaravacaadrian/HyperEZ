@@ -1,5 +1,3 @@
-# Entrada para github-linguist/linguist: lib/linguist/languages.yml (en orden alfabético).
-# Generada por tools/linguist_kit.py. Linguist añade el language_id con script/update-ids.
 HyperEZ:
   type: programming
   color: "#62d962"

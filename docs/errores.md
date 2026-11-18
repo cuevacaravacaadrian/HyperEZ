@@ -39,7 +39,7 @@ Donde pone «…» va el nombre o el valor concreto de tu programa.
 | `E0204` | '…' ya está declarado… en la línea … | cada nombre global debe ser único en el archivo |
 | `E0205` | No existe ninguna variable llamada '…'<br>No existe nada llamado '…' | …declárala primero con: var … = ...…¿quisiste decir '…'? Para crearla usa: var … = ... |
 | `E0206` | …No se encontró el módulo '…'… |  |
-| `E0207` | El módulo '…' no exporta '…' |  |
+| `E0207` | 'from … import *' solo funciona con módulos y bibliotecas escritos en HyperEZ<br>El módulo '…' no exporta '…' | importa los nombres uno a uno |
 | `E0208` | Valor repetido '…' en el enum |  |
 | `E0209` | El valor de un enum debe ser un número o un texto literal |  |
 | `E0210` | 'import' solo puede usarse en el nivel superior del archivo |  |

@@ -1,6 +1,3 @@
-// Generar una página web a partir de Markdown y una plantilla con datos.
-//   hyper pagina_markdown.hz            muestra el HTML
-//   hyper pagina_markdown.hz pagina.html  lo guarda (ábrelo con el navegador)
 import markdown
 import template
 

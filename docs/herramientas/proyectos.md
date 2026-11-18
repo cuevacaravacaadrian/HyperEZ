@@ -1,6 +1,6 @@
 # Proyectos y carpetas de HyperEZ
 
-Un proyecto de HyperEZ tiene **sus propias carpetas**, cada una con un nombre que empieza por `hyper` y su propio icono en HyperEZ Editor, en el editor del navegador y en VS Code (con los iconos de HyperEZ). No hay que configurar nada: `hyper run`, `hyper test`, las importaciones y los editores las reconocen solos.
+Un proyecto de HyperEZ tiene **sus propias carpetas**, cada una con un nombre que empieza por `hyper` y su propio icono en VS Code y en HyperEZ Editor (con los iconos de HyperEZ). No hay que configurar nada: `hyper run`, `hyper test`, las importaciones y los editores las reconocen solos.
 
 ```text
 mi-juego/
@@ -26,7 +26,6 @@ Solo `hypersettings/` es imprescindible: marca la **raíz del proyecto**. Las de
 
 - **Terminal**: `hyper new mi-juego` (o `--tipo app`, `ia`, `script`, `web`, `sitio`).
 - **HyperEZ Editor**: *Archivo → Nuevo proyecto* (Ctrl+Mayús+N). Se crea en `Documentos\HyperEZ` y se abre en el Explorador.
-- **Editor del navegador**: *Archivo → Nuevo proyecto* (Ctrl+Mayús+N), con los mismos tipos.
 - **VS Code**: *HyperEZ: Nuevo proyecto*.
 
 ## Para qué sirve cada carpeta
@@ -35,7 +34,7 @@ Solo `hypersettings/` es imprescindible: marca la **raíz del proyecto**. Las de
 |---|---|---|
 | `hypersettings/` | `proyecto.json` con el nombre, la versión, la descripción, el autor y el **programa principal** | `hyper run` sin archivo ejecuta el principal; los editores muestran el nombre del proyecto |
 | `hypercode/` | los **módulos**: se importan **por su nombre**, desde cualquier carpeta del proyecto | `from jugador import Jugador` |
-| `hypertests/` | las **pruebas** (`test("...", () => { ... })`) | `hyper test` sin carpeta las ejecuta todas; en el navegador, *Ejecutar → Ejecutar las pruebas* |
+| `hypertests/` | las **pruebas** (`test("...", () => { ... })`) | `hyper test` sin carpeta las ejecuta todas |
 | `hyperlibs/` | **bibliotecas de otros**, una carpeta por biblioteca con su `main.hez` | `import saludos` busca `hyperlibs/saludos/main.hez` |
 | `hypertools/` | **herramientas** del proyecto: scripts para generar datos, publicar... | `hyper tool` las lista (con su primer comentario) y `hyper tool <nombre> [args]` ejecuta una |
 | `hyperdata/` | los **datos** del programa | `Path.join(System.projectDir, "hyperdata/tareas.json")` |
@@ -57,7 +56,7 @@ Solo `hypersettings/` es imprescindible: marca la **raíz del proyecto**. Las de
 }
 ```
 
-`principal` es el archivo que ejecutan `hyper run` sin argumentos, F5 sobre un archivo que no es código (en el navegador) y los botones de ejecutar del proyecto.
+`principal` es el archivo que ejecutan `hyper run` sin argumentos y los botones de ejecutar del proyecto.
 
 ## Importar por nombre
 
@@ -103,10 +102,9 @@ Cada carpeta tiene su icono, el mismo en todas partes:
 | | |
 |---|---|
 | **HyperEZ Editor** | el Explorador los muestra siempre |
-| **Editor del navegador** | igual |
 | **VS Code** | *HyperEZ: Usar los iconos de HyperEZ* (se ofrece al abrir un proyecto con `hypersettings/`), o *Preferencias → Tema de iconos de archivo → HyperEZ* |
 
-Los dibuja `tools/gen_iconos.js` (SVG para VS Code y la web, `.ico` para HyperEZ Editor) y están en `assets/icons/tema`.
+Los dibuja `tools/gen_iconos.js` (SVG para VS Code, `.ico` para HyperEZ Editor) y están en `assets/icons/tema`.
 
 ## Proyectos de antes
 

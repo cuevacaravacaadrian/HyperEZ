@@ -1,4 +1,3 @@
-// Valores y objetos del runtime de HyperEZ.
 #pragma once
 
 #include "core/common.h"
@@ -43,9 +42,6 @@ struct Obj {
     Obj* next = nullptr;
     explicit Obj(OT t) : type(t) {}
     virtual ~Obj() = default;
-    // Los objetos pequeños salen de listas libres por tamaño (mucho más rápido que malloc/free
-    // para los miles de vectores, textos y listas que crea un juego en cada fotograma).
-    // La VM es de un solo hilo: no se crean objetos desde otros hilos.
     static void* operator new(size_t n);
     static void operator delete(void* p, size_t n);
 };
@@ -72,15 +68,14 @@ struct ObjFunction : Obj {
     ObjString* className = nullptr;
     ObjModule* module = nullptr;
     std::vector<ObjString*> paramNames;
-    int arity = 0;      // parámetros declarados (sin contar el ...resto)
-    int minArity = 0;   // obligatorios
+    int arity = 0;
+    int minArity = 0;
     bool hasRest = false;
     bool isAsync = false;
-    bool isMethod = false; // slot 0 = this
-    bool isCtor = false;   // RETURN devuelve this
+    bool isMethod = false;
+    bool isCtor = false;
     int upvalueCount = 0;
     int maxSlots = 0;
-    // Caché en línea de OP_INVOKE: (clase del receptor, método). El GC marca ambos.
     struct InvokeCache { ObjClass* cls = nullptr; ObjClosure* method = nullptr; };
     int invokeCacheSize = 0;
     std::vector<InvokeCache> invokeCache;
@@ -102,11 +97,10 @@ struct ObjUpvalue : Obj {
 struct ObjClosure : Obj {
     ObjFunction* fn;
     std::vector<ObjUpvalue*> upvalues;
-    ObjClass* owner = nullptr; // clase en la que se definió (para super)
+    ObjClass* owner = nullptr;
     explicit ObjClosure(ObjFunction* f) : Obj(OT::Closure), fn(f) {}
 };
 
-// Las funciones nativas reciben args[0..argc) y en args[-1] el receptor o la propia función.
 using NativeFn = Value (*)(VM& vm, int argc, Value* args);
 
 struct ObjNative : Obj {
@@ -114,7 +108,7 @@ struct ObjNative : Obj {
     ObjString* name = nullptr;
     int minArgs = 0, maxArgs = -1;
     void* data = nullptr;
-    bool acceptsNamed = false; // los argumentos con nombre llegan como mapa final
+    bool acceptsNamed = false;
     ObjNative() : Obj(OT::Native) {}
 };
 
@@ -131,20 +125,20 @@ template <class V> using StrMap = std::unordered_map<ObjString*, V, PtrHash>;
 struct ObjClass : Obj {
     ObjString* name = nullptr;
     ObjClass* super = nullptr;
-    StrMap<Value> methods;   // instancia (incluye heredados)
-    StrMap<Value> statics;   // estáticos (métodos y campos)
+    StrMap<Value> methods;
+    StrMap<Value> statics;
     StrMap<Value> getters, setters, staticGetters, staticSetters;
     std::vector<ObjString*> fieldNames;
     StrMap<int> fieldIndex;
-    std::vector<Value> fieldInits; // cadena de inicializadores (base -> derivada)
-    Value ctor;              // constructor propio o heredado
+    std::vector<Value> fieldInits;
+    Value ctor;
     std::vector<ObjString*> interfaces;
     bool isStruct = false;
-    bool isNative = false;   // clase integrada (Vec2, Texture, Error...)
+    bool isNative = false;
     bool isInterface = false;
     NativeFn nativeCtor = nullptr;
-    OT instanceType = OT::Instance; // tipo de objeto que crea (Vec, Foreign...)
-    int vecKind = -1;        // para clases de vectores
+    OT instanceType = OT::Instance;
+    int vecKind = -1;
     ObjModule* module = nullptr;
     ObjClass() : Obj(OT::Class) {}
     bool isSubclassOf(const ObjClass* other) const {
@@ -161,7 +155,7 @@ struct ObjClass : Obj {
 struct ObjInstance : Obj {
     ObjClass* cls;
     std::vector<Value> fields;
-    std::unique_ptr<StrMap<Value>> extra; // propiedades no declaradas
+    std::unique_ptr<StrMap<Value>> extra;
     explicit ObjInstance(ObjClass* c) : Obj(OT::Instance), cls(c) {}
 };
 
@@ -231,9 +225,9 @@ struct ObjModule : Obj {
     std::string path;
     std::vector<Value> globals;
     std::vector<ObjString*> globalNames;
-    StrMap<int> exports;           // nombre -> índice en globals (públicos)
-    StrMap<int> allGlobals;        // nombre -> índice (todos)
-    StrMap<NativeProp> props;      // propiedades nativas (Window.width...)
+    StrMap<int> exports;
+    StrMap<int> allGlobals;
+    StrMap<NativeProp> props;
     bool isNative = false;
     bool initialized = false;
     std::string doc;
@@ -274,7 +268,7 @@ struct ObjSubscription : Obj {
     uint64_t order = 0;
     bool once = false;
     bool active = true;
-    Value owner; // objeto dueño opcional (se cancela al destruirlo)
+    Value owner;
     ObjSubscription() : Obj(OT::Subscription) {}
 };
 
@@ -302,7 +296,7 @@ struct ObjFiber : Obj {
     FiberState state = FiberState::New;
     ObjTask* task = nullptr;
     ObjTask* waitingOn = nullptr;
-    Value closure;               // función de entrada
+    Value closure;
     ObjFiber() : Obj(OT::Fiber) { stack.resize(256); }
     void ensure(int extra) {
         if (sp + extra + 8 > (int)stack.size()) {
@@ -321,8 +315,8 @@ struct ObjTask : Obj {
     Value result;
     Value error;
     std::vector<ObjFiber*> waiters;
-    std::vector<Value> callbacks; // funciones .then()
-    double wakeAt = -1;           // para wait()
+    std::vector<Value> callbacks;
+    double wakeAt = -1;
     bool cancelRequested = false;
     bool errorObserved = false;
     ObjString* label = nullptr;
@@ -338,17 +332,14 @@ struct ObjVec : Obj {
     int dims() const { return kind == VK_VEC2 ? 2 : kind == VK_VEC3 ? 3 : 4; }
 };
 
-// Recurso nativo (textura, sonido, modelo...) con finalizador.
 struct ObjForeign : Obj {
     ObjClass* cls = nullptr;
     void* ptr = nullptr;
     void (*finalize)(void*) = nullptr;
-    std::vector<Value> refs; // valores retenidos (marcados por el GC)
+    std::vector<Value> refs;
     ObjForeign() : Obj(OT::Foreign) {}
     ~ObjForeign() override { if (finalize && ptr) finalize(ptr); }
 };
-
-// ---- Utilidades sobre valores ------------------------------------------------
 
 inline ObjString* asString(const Value& v) { return static_cast<ObjString*>(v.o); }
 inline bool isString(const Value& v) { return isObjType(v, OT::String); }
@@ -363,4 +354,4 @@ inline bool isFalsy(const Value& v) {
 }
 bool valuesEqual(const Value& a, const Value& b, int depth = 0);
 
-} // namespace hz
+}

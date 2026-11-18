@@ -1,5 +1,3 @@
-// Máquina virtual de HyperEZ: ejecución de bytecode, recolector de basura,
-// fibras (async/await), eventos y registro de la API nativa.
 #pragma once
 
 #include "lang/vm/value.h"
@@ -12,34 +10,26 @@
 
 namespace hz {
 
-// exit() / Process.exit() en el navegador (WebAssembly): no se puede terminar el proceso, así que se
-// lanza esto y hz_run lo recoge como el código de salida del programa
-struct ProgramExit { int code; };
-
 struct Program;
 struct ModuleUnit;
 class Analyzer;
 
-// Error lanzado por funciones nativas; la VM lo convierte en excepción del script.
+bool isLpoScript(const std::string& path);
+
 struct NativeError { std::string message; };
-// Señal interna: hay una excepción del script pendiente que debe propagarse.
 struct PropagateError {};
 
 enum class RunResult { Ok, Yield, Error };
 
-// Consola interactiva (hyper repl): cada entrada se analiza junto con las anteriores, pero solo se
-// genera código para la nueva. Los globales viven en un único módulo compartido por todas las entradas.
 struct ReplSession {
-    ObjModule* module = nullptr;      // módulo compartido (nullptr hasta la primera entrada)
-    std::vector<std::string> globals; // globales ya creados, en orden de índice
-    int start = 0;                    // desplazamiento en el código donde empieza la entrada nueva
-    int echoSlot = -1;                // integrado que muestra el valor de la última expresión
+    ObjModule* module = nullptr;
+    std::vector<std::string> globals;
+    int start = 0;
+    int echoSlot = -1;
 };
 
-// Ctrl+C: los bucles del programa lo comprueban y lanzan el error "Ejecución interrumpida".
 extern std::atomic<bool> g_interrupt;
 
-// Información de tipos de la API para el analizador (se rellena al registrar nativos).
 struct BuiltinInfo {
     std::string name;
     int index = -1;
@@ -52,70 +42,58 @@ public:
     ~VM();
     VM(const VM&) = delete;
 
-    // ---- Configuración del host ------------------------------------------------
-    std::function<void(std::string_view)> printHook;  // salida de print()
+    std::function<void(std::string_view)> printHook;
     std::function<std::string(const std::string&)> inputHook;
-    std::function<bool(const std::string&, std::string&)> readSource; // VFS (paquetes exportados)
-    std::function<double()> clock;                    // tiempo para wait() (juego o real)
+    std::function<bool(const std::string&, std::string&)> readSource;
+    std::function<double()> clock;
     bool gameMode = false;
     std::string projectRoot;
-    // Carpeta del proyecto: la primera que tiene hypersettings/ subiendo desde projectRoot (si no, projectRoot)
     std::string projectHome();
     std::vector<std::string> searchPaths;
     std::vector<std::string> warnings;
-    std::vector<std::string> scriptArgs;  // System.args
-    int testsPassed = 0, testsFailed = 0; // contadores de test()
-    ReplSession* repl = nullptr;          // sesión de la consola interactiva (solo hyper repl)
+    std::vector<std::string> scriptArgs;
+    int testsPassed = 0, testsFailed = 0;
+    ReplSession* repl = nullptr;
 
-    // ---- Compilación y ejecución --------------------------------------------------
-    // Compila (sin ejecutar) un módulo. Siempre devuelve la unidad; usa unitHasErrors() para saber si se puede ejecutar.
     ModuleUnit* compileFile(const std::string& path);
     ModuleUnit* compileSource(const std::string& path, const std::string& source, bool isEntry = true, bool codegen = true);
     bool unitHasErrors(ModuleUnit* unit);
     void printDiagnostics(ModuleUnit* unit, FILE* out, bool includeWarnings = true);
     bool loadPrelude();
-    // Ejecuta el código de nivel superior del módulo (en la fibra principal). false si hubo error.
     bool runModule(ModuleUnit* unit);
-    // Procesa tareas pendientes (temporizadores/await) hasta que no quede nada; para modo consola.
     bool drainScheduler();
-    // Avanza el planificador una vez (modo juego): reanuda las fibras listas.
     void pumpScheduler();
     bool hasPendingTasks() const;
-    void cancelAllTasks(); // descarta temporizadores y tareas pendientes (Ctrl+C en la consola)
+    void cancelAllTasks();
 
-    // Resolución de módulos (usado por el analizador)
     ModuleUnit* resolveImport(const std::string& path, bool isFile, const std::string& fromFile, std::string& error);
     Value libraryModule(const std::string& name);
     std::vector<std::string> libraryNames() const;
-    std::vector<std::string> bundledLibraryNames() const; // bibliotecas .hz incluidas (src/lib)
+    std::vector<std::string> bundledLibraryNames() const;
     std::vector<std::unique_ptr<ModuleUnit>> units;
     ModuleUnit* preludeUnit = nullptr;
     ModuleUnit* entryUnit = nullptr;
 
-    // ---- Llamadas desde código nativo ----------------------------------------------
-    Value call(Value fn, int argc, const Value* args); // lanza PropagateError si falla
+    Value call(Value fn, int argc, const Value* args);
     Value call(Value fn, std::initializer_list<Value> args) { return call(fn, (int)args.size(), args.begin()); }
     Value callMethod(Value receiver, const char* name, int argc, const Value* args);
-    Value callBound(Value method, Value self, int argc, const Value* args); // método con this explícito
+    Value callBound(Value method, Value self, int argc, const Value* args);
     void errorInit(ObjInstance* inst, Value message);
     ObjFiber* hostFiber = nullptr;
-    bool tryCall(Value fn, int argc, const Value* args, Value* out = nullptr); // registra el error y devuelve false
+    bool tryCall(Value fn, int argc, const Value* args, Value* out = nullptr);
     Value getGlobal(ModuleUnit* unit, const std::string& name);
     Value findFunction(ModuleUnit* unit, const std::string& name);
 
-    // ---- Errores ----------------------------------------------------------------------
     [[noreturn]] void raise(const std::string& msg);
     void reportError(const Value& err, FILE* out = stderr);
     std::string errorMessage(const Value& err);
     Value lastError;
     bool hadUncaught = false;
-    // Si devuelve true, el host ya mostró el error (la consola interactiva usa sus propios números de línea).
     std::function<bool(const std::string& message, const std::string& file, int line, int col,
                        const std::vector<std::string>& trace)> errorHook;
 
-    // ---- Memoria ----------------------------------------------------------------------
     ObjString* intern(std::string_view s);
-    ObjString* internMove(std::string&& s); // como intern, pero sin copiar si la cadena es nueva
+    ObjString* internMove(std::string&& s);
     Value str(std::string_view s) { return Value::object(intern(s)); }
     ObjList* newList();
     ObjMap* newMap(bool isSet = false);
@@ -134,18 +112,17 @@ public:
         bytesAllocated += sizeof(T) + 32;
         return o;
     }
-    void pin(Value v);   // retener un valor desde C++ (motor)
+    void pin(Value v);
     void unpin(Value v);
     void collectGarbage();
     void maybeGC() { if (bytesAllocated > nextGC && gcEnabled) collectGarbage(); }
     size_t bytesAllocated = 0, nextGC = 4 * 1024 * 1024;
     bool gcEnabled = true;
     std::vector<Value> tempRoots;
-    std::vector<std::function<void(VM&)>> extraRoots; // el motor marca sus propias referencias
+    std::vector<std::function<void(VM&)>> extraRoots;
     void markValue(const Value& v);
     void markObject(Obj* o);
 
-    // ---- Registro de API nativa ---------------------------------------------------------
     ObjModule* nativeModule(const std::string& name, const std::string& doc);
     ObjNative* defineFn(ObjModule* mod, const std::string& name, const std::string& sig, const std::string& doc, NativeFn fn,
                         const std::string& example = "");
@@ -167,52 +144,46 @@ public:
     std::vector<std::pair<std::string, std::string>> libraryDocs;
     std::unordered_map<std::string, std::vector<std::string>> libraryMembers;
 
-    // Integrados (globales visibles en todos los módulos)
     std::vector<Value> builtins;
     std::unordered_map<std::string, int> builtinIndex;
     int builtinSlot(const std::string& name);
     std::unordered_map<std::string, Value> libraries;
 
-    // Clases de tipos integrados
     ObjClass *textClass, *listClass, *mapClass, *setClass, *numberClass, *boolClass, *functionClass, *rangeClass,
         *taskClass, *eventClass, *subscriptionClass, *errorClass, *eventDataClass, *enumClass, *moduleClass,
         *enumValueClass;
     ObjClass* vecClass[5] = {};
 
-    // ---- Utilidades -----------------------------------------------------------------------
     std::string toString(const Value& v, bool quoteStrings = false, int depth = 0);
     std::string typeName(const Value& v);
     bool isInstanceOf(const Value& v, std::string_view typeName);
     ObjClass* classOf(const Value& v);
     void flushOutput();
     void print(std::string_view s);
+    void warn(const std::string& s);
 
-    // Estado de ejecución
-    ObjFiber* fiber = nullptr;     // fibra actual
+    ObjFiber* fiber = nullptr;
     ObjFiber* mainFiber = nullptr;
     std::vector<ObjFiber*> fiberStack;
     std::deque<ObjFiber*> ready;
     std::vector<ObjTask*> timers;
-    std::vector<ObjTask*> pendingTasks; // tareas con fibra viva (para raíces)
+    std::vector<ObjTask*> pendingTasks;
     uint64_t subscriptionCounter = 0;
     int nativeDepth = 0;
     double currentTime();
 
-    // Eventos
     void emitEvent(ObjEvent* ev, int argc, const Value* args, Value target = Value());
     ObjSubscription* subscribe(ObjEvent* ev, Value handler, bool once, double priority);
     Value eventPayload(ObjEvent* ev, int argc, const Value* args, Value target);
 
-    // Tareas
     ObjTask* waitTask(double seconds);
     void completeTask(ObjTask* t, Value result);
     void failTask(ObjTask* t, Value err);
     void wakeWaiters(ObjTask* t);
 
-    // Interno (usado por vm.cpp)
     RunResult run(int exitDepth);
-    bool callValue(Value callee, int argc); // prepara la llamada en la fibra actual
-    bool throwValue(Value err);             // intenta manejar una excepción
+    bool callValue(Value callee, int argc);
+    bool throwValue(Value err);
     int currentExitDepth = 0;
     std::vector<std::string> lastTrace;
     struct Resume { ObjFiber* f; Value v; bool err; };
@@ -235,16 +206,17 @@ public:
     std::vector<std::string> stackTrace();
     std::string callArgsError;
 
+    ObjNative* currentNative = nullptr;
+    void* hostData = nullptr;
+
     std::string output;
-    char lastOutputChar = '\n'; // último carácter enviado a stdout (la consola lo usa para cerrar la línea)
+    char lastOutputChar = '\n';
     bool outputToStdout = true;
 
-    // Nombres internos frecuentes
     ObjString *s_constructor, *s_toString, *s_message, *s_stack, *s_name, *s_length, *s_iterator;
 
 private:
     Obj* objects = nullptr;
-    // Tabla de textos internados; la clave lleva el hash ya calculado (se calcula una sola vez por texto).
     struct InternKey {
         std::string_view s;
         size_t h;
@@ -262,17 +234,23 @@ private:
 public:
     bool callClosure(ObjClosure* c, int argc);
     bool callNative(ObjNative* n, int argc);
-    bool callMethodValue(Value method, int argc); // receptor ya en el slot del callee
+    bool callMethodValue(Value method, int argc);
     bool startAsync(ObjClosure* c, int argc);
     bool reorderNamed(Value callee, int& argc, ObjList* names);
     Value arith(uint8_t op, Value a, Value b);
-    bool objectsEqual(const Value& a, const Value& b); // == entre objetos: usa equals() si la clase lo define
+    bool objectsEqual(const Value& a, const Value& b);
     bool contains(Value container, Value item);
     void push(Value v) { fiber->ensure(1); fiber->stack[fiber->sp++] = v; }
     friend struct VMRunner;
 };
 
-// Helpers para implementar funciones nativas
+struct NativeScope {
+    VM& vm;
+    ObjNative* prev;
+    NativeScope(VM& v, ObjNative* n) : vm(v), prev(v.currentNative) { v.currentNative = n; }
+    ~NativeScope() { vm.currentNative = prev; }
+};
+
 double argNum(VM& vm, Value* args, int argc, int i, const char* fname, double def = NAN);
 std::string argStr(VM& vm, Value* args, int argc, int i, const char* fname, const char* def = nullptr);
 bool argBool(Value* args, int argc, int i, bool def);
@@ -280,18 +258,13 @@ ObjList* argList(VM& vm, Value* args, int argc, int i, const char* fname);
 ObjMap* argMap(VM& vm, Value* args, int argc, int i, const char* fname);
 ObjVec* argVec(VM& vm, Value* args, int argc, int i, const char* fname, int kind);
 Value optArg(Value* args, int argc, int i);
-// Busca una opción en el mapa de opciones (último argumento si es mapa).
 Value optField(VM& vm, ObjMap* opts, const char* key);
 
-// Registro de la biblioteca estándar (builtins.cpp)
-// Generador aleatorio compartido por random(), randomInt(), chance()... (randomSeed lo reinicia)
 std::mt19937_64& randomEngine();
-// Números aleatorios iguales en todos los sistemas (las distribuciones de <random> no lo garantizan):
-// con la misma semilla, Windows, Linux y macOS producen la misma secuencia.
-double randomUnit();                              // [0, 1)
-long long randomBetween(long long lo, long long hi); // entero en [lo, hi]
+double randomUnit();
+long long randomBetween(long long lo, long long hi);
 void registerStdlib(VM& vm);
-void registerStdlibExtra(VM& vm); // stdlib_extra.cpp (la llama registerStdlib)
+void registerStdlibExtra(VM& vm);
 void registerMathTypes(VM& vm);
 
-} // namespace hz
+}

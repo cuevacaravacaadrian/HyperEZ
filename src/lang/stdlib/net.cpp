@@ -1,5 +1,3 @@
-// Red: peticiones HTTP y HTTPS (Http). Windows usa WinHTTP; Linux y macOS, la orden curl.
-// Sirve para consultar servicios web y APIs (también de IA), descargar archivos o enviar datos.
 #include "lang/stdlib/native.h"
 #include "core/process.h"
 
@@ -148,7 +146,6 @@ static HttpResponse httpSend(const HttpRequest& q) {
         readFile(bodyFile, r.body);
         std::string head;
         readFile(headFile, head);
-        // con redirecciones hay varios bloques de cabeceras: el último es el bueno
         size_t last = head.rfind("HTTP/");
         parseHeaderBlock(last == std::string::npos ? head : head.substr(last), r);
     }
@@ -164,7 +161,6 @@ static Value jsonCall(VM& vm, const char* fn, Value arg) {
     return vm.call(f, 1, &arg);
 }
 
-// Construye la petición a partir de (url, cuerpo?, opciones?)
 static HttpRequest makeRequest(VM& vm, const std::string& method, Value* args, int argc, int urlIdx, int bodyIdx, int optIdx,
                                const char* fname) {
     HttpRequest q;
@@ -293,4 +289,4 @@ void registerNet(VM& vm) {
     vm.defineFn(http, "query", "(parametros: map): text", "Mapa a parámetros de URL: {q: \"hola mundo\", n: 2} -> \"q=hola%20mundo&n=2\".", http_query);
 }
 
-} // namespace hz
+}

@@ -10,7 +10,6 @@ import os
 import re
 import sys
 
-# La consola de Windows (y la de GitHub Actions) puede no ser UTF-8: los ✓ y las tildes no deben romper el script
 for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
         _s.reconfigure(encoding="utf-8", errors="replace")
@@ -18,12 +17,14 @@ for _s in (sys.stdout, sys.stderr):
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def sub(path, pattern, repl, count=1):
+def sub(path, pattern, repl, count=1, required=True):
     full = os.path.join(ROOT, path)
     with open(full, encoding="utf-8", newline="") as f:
         text = f.read()
     new, n = re.subn(pattern, repl, text, count=count, flags=re.M)
     if n == 0:
+        if not required:
+            return
         raise SystemExit("No se encontró la versión en " + path)
     with open(full, "w", encoding="utf-8", newline="") as f:
         f.write(new)
@@ -56,7 +57,7 @@ def main():
     for doc in ("README.md", "docs/empezar/instalacion.md"):
         sub(doc, r"HyperEZ-Setup-[\d.]+\.exe", "HyperEZ-Setup-%s.exe" % v, count=0)
         sub(doc, r"HyperEZ-[\d.]+-(linux|macos)", r"HyperEZ-%s-\1" % v, count=0)
-        sub(doc, r"hyperez-[\d.]+\.vsix", "hyperez-%s.vsix" % v, count=0)
+        sub(doc, r"hyperez-[\d.]+\.vsix", "hyperez-%s.vsix" % v, count=0, required=False)
     sub("editors/vscode/PUBLICAR.md", r"hyperez-[\d.]+\.vsix", "hyperez-%s.vsix" % v, count=0)
     sub("docs/herramientas/consola-interactiva.md", r"HyperEZ [\d.]+ · consola interactiva", "HyperEZ %s · consola interactiva" % v)
     print("Recuerda añadir la sección " + v + " a CHANGELOG.md.")

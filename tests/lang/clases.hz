@@ -1,5 +1,3 @@
-// Clases, herencia, interfaces, structs, enums, getters/setters, estáticos y errores propios.
-
 interface Danable { function recibir(n: number): void }
 
 class Actor implements Danable {

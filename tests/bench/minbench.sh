@@ -1,5 +1,4 @@
 #!/bin/sh
-# Ejecuta bench.hz varias veces y muestra el mínimo de cada métrica (ms).
 EXE=${1:-./build/hyper.exe}
 N=${2:-7}
 for i in $(seq $N); do "$EXE" tests/bench/bench.hz | tail -1; done | awk '

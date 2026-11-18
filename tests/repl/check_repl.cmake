@@ -1,6 +1,3 @@
-# Ejecuta la consola interactiva con una sesión grabada y compara la salida con la esperada.
-#   cmake -DHYPER=<hyper.exe> -DSESION=<sesion.txt> -DESPERADO=<sesion.out> -DRAIZ=<repositorio> -P check_repl.cmake
-# Con -DACTUALIZAR=1 reescribe la salida esperada.
 set(ENV{NO_COLOR} 1)
 execute_process(COMMAND "${HYPER}" repl
                 INPUT_FILE "${SESION}"

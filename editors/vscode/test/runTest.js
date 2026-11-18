@@ -1,21 +1,15 @@
-// Lanza VS Code con la extensión en desarrollo y ejecuta test/suite/index.js.
-//   node test/runTest.js [ruta de Code.exe]   (sin ruta: descarga VS Code Insiders en .vscode-test; su instancia no choca con un VS Code abierto o actualizándose)
-// Usa un perfil y una carpeta de extensiones temporales: no toca la configuración del usuario.
 'use strict';
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { runTests } = require('@vscode/test-electron');
 
-// Por defecto se usa una copia aislada descargada en .vscode-test; se puede indicar otra.
 function findCode() {
   const p = process.argv[2] || process.env.HZ_VSCODE_EXE;
   return p && fs.existsSync(p) ? p : undefined;
 }
 
 (async () => {
-  // Si este script se ejecuta desde una terminal de VS Code, sus variables harían que Code.exe
-  // se comportara como Node o se conectara a la ventana ya abierta.
   for (const k of Object.keys(process.env)) if (k === 'ELECTRON_RUN_AS_NODE' || k.startsWith('VSCODE_')) delete process.env[k];
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hz-vscode-profile-'));
   const results = path.join(tmp, 'resultados.json');

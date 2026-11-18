@@ -1,11 +1,3 @@
-// HyperEZ Editor: editor de código clásico para Windows, con fondo blanco y todo lo necesario para
-// programar en HyperEZ sin instalar nada más:
-//   barra de herramientas clásica, pestañas (varios archivos a la vez), colores de sintaxis, números de
-//   línea, errores mientras escribes (el mismo analizador que el compilador), ejecutar con F5 (en una
-//   consola) o con Mayús+F5 (en el panel de salida), modo watch, consola interactiva, buscar y
-//   reemplazar, ir a la línea, sangría automática, comentar líneas, autocompletado (Ctrl+Espacio),
-//   formato, imprimir, elegir la fuente, zoom, archivos recientes, plantillas, ejemplos y arrastrar y
-//   soltar. Los archivos nuevos se guardan como .hez.
 #ifndef UNICODE
 #define UNICODE
 #endif
@@ -49,7 +41,6 @@
 using namespace hz;
 namespace fs = std::filesystem;
 
-// El servidor de lenguaje (ir a la definición) prepara sus máquinas virtuales como hyper
 void hz::setupVM(VM& vm) {
     registerStdlib(vm);
     registerMathTypes(vm);
@@ -59,14 +50,9 @@ void hz::setupVM(VM& vm) {
 
 namespace {
 
-// ---------------------------------------------------------------------------
-// Estado
-// ---------------------------------------------------------------------------
-
 enum : int {
     ID_EDIT = 100, ID_GUTTER, ID_PANEL, ID_STATUS, ID_COMPLETE, ID_TABS, ID_TOOLBAR, ID_BOTTOMTABS, ID_OUTPUT, ID_TREE, ID_TREEHEADER,
     ID_TB_NEW = 200, ID_TB_OPEN, ID_TB_SAVE, ID_TB_RUN, ID_TB_CHECK, ID_TB_WATCH, ID_TB_REPL, ID_TB_EXAMPLES, ID_TB_HELP,
-    // Menú
     CMD_NEW = 1000, CMD_OPEN, CMD_SAVE, CMD_SAVEAS, CMD_EXIT, CMD_OPEN_FOLDER,
     CMD_UNDO, CMD_REDO, CMD_CUT, CMD_COPY, CMD_PASTE, CMD_DELETE, CMD_SELECTALL, CMD_FIND, CMD_FINDNEXT, CMD_REPLACE,
     CMD_GOTO, CMD_COMMENT, CMD_INDENT, CMD_OUTDENT, CMD_COMPLETE, CMD_DUPLICATE, CMD_FORMAT,
@@ -77,10 +63,10 @@ enum : int {
     CMD_CLEAROUTPUT, CMD_EXAMPLESMENU, CMD_CLOSEOTHERS,
     CMD_EXPLORER, CMD_OPENDIR, CMD_TREE_OPEN, CMD_TREE_NEWFILE, CMD_TREE_NEWDIR, CMD_TREE_RENAME, CMD_TREE_DELETE,
     CMD_TREE_REVEAL, CMD_TREE_COPYPATH, CMD_TREE_REFRESH,
-    CMD_THEME, CMD_NEWPROJECT, CMD_SHARE, CMD_HELP_WEB, CMD_HELP_WEBEDITOR, CMD_DEFINITION,
-    CMD_RECENT = 2000,  // 2000..2009
-    CMD_EXAMPLE = 3000, // 3000..3999
-    CMD_TEMPLATE = 4000 // 4000..4099
+    CMD_THEME, CMD_NEWPROJECT, CMD_HELP_WEB, CMD_DEFINITION,
+    CMD_RECENT = 2000,
+    CMD_EXAMPLE = 3000,
+    CMD_TEMPLATE = 4000
 };
 
 enum : UINT_PTR { TIMER_HIGHLIGHT = 1, TIMER_CHECK = 2, TIMER_GUTTER = 3 };
@@ -92,22 +78,21 @@ ITextDocument* g_doc = nullptr;
 int g_dpi = 96;
 int g_fontPt = 11;
 bool g_wrap = false, g_showPanel = true, g_showNumbers = true;
-int g_panelHeight = 170;            // alto del panel de abajo (en píxeles a 96 ppp)
-int g_splitTop = -1, g_splitBottom = -1; // franja del separador arrastrable (en la ventana)
-// Explorador de la izquierda: visible, ancho (a 96 ppp), carpeta y la franja del separador vertical
+int g_panelHeight = 170;
+int g_splitTop = -1, g_splitBottom = -1;
 HWND g_tree = nullptr, g_treeHeader = nullptr;
 HIMAGELIST g_treeImages = nullptr;
 bool g_showExplorer = true;
-bool g_dark = false;                       // tema oscuro HyperEZ Noche (Ver → Tema oscuro)
+bool g_dark = false;
 HBRUSH g_brPanel = nullptr, g_brHeader = nullptr;
 int g_explorerWidth = 230;
 std::wstring g_explorerRoot;
 int g_vsplitLeft = -1, g_vsplitRight = -1, g_vsplitTop = 0, g_vsplitBottom = 0;
 bool g_vsplitDrag = false;
 bool g_splitDrag = false;
-std::wstring g_file;   // vacío = sin título
+std::wstring g_file;
 bool g_dirty = false;
-std::wstring g_savedText; // texto tal como está guardado (para saber si hay cambios)
+std::wstring g_savedText;
 bool g_formatting = false;
 int g_lastFirstLine = -1;
 UINT g_findMsg;
@@ -120,7 +105,6 @@ WNDPROC g_editProc = nullptr;
 struct Problem { int line = 0, col = 0; LONG cpStart = 0, cpEnd = 0; std::wstring text; bool error = true; };
 std::vector<Problem> g_problems;
 
-// Un documento abierto en una pestaña
 struct Doc {
     HWND edit = nullptr;
     ITextDocument* tom = nullptr;
@@ -134,19 +118,14 @@ HWND g_tabs = nullptr, g_toolbar = nullptr, g_bottomTabs = nullptr, g_output = n
 HFONT g_outFont = nullptr;
 bool g_overwrite = false, g_showToolbar = true, g_showStatus = true;
 std::wstring g_fontFace = L"Consolas";
-int g_bottomPage = 0; // 0: problemas, 1: salida
+int g_bottomPage = 0;
 HMENU g_examplesMenu = nullptr;
 
-// Catálogo para el autocompletado: nombres globales y miembros de módulos/clases
 std::vector<std::wstring> g_globals;
 std::map<std::wstring, std::vector<std::wstring>> g_members;
 std::map<std::wstring, std::wstring> g_signatures;
 
 int S(int v) { return MulDiv(v, g_dpi, 96); }
-
-// ---------------------------------------------------------------------------
-// Texto y conversiones
-// ---------------------------------------------------------------------------
 
 std::wstring widen(const std::string& s) {
     if (s.empty()) return {};
@@ -163,7 +142,6 @@ std::string narrow(const std::wstring& w) {
     return s;
 }
 
-// Texto del editor tal como lo ve RichEdit (los párrafos terminan en \r; cada posición es un carácter UTF-16).
 std::wstring editorText() {
     GETTEXTLENGTHEX gl{GTL_DEFAULT | GTL_NUMCHARS, 1200};
     LRESULT n = SendMessageW(g_edit, EM_GETTEXTLENGTHEX, (WPARAM)&gl, 0);
@@ -174,10 +152,9 @@ std::wstring editorText() {
     return w;
 }
 
-// UTF-8 para el compilador (con \n) y la tabla byte -> posición del editor.
 struct Utf8Text {
     std::string text;
-    std::vector<LONG> cp; // cp[byte] = posición en el editor
+    std::vector<LONG> cp;
 };
 Utf8Text toUtf8(const std::wstring& w) {
     Utf8Text r;
@@ -207,10 +184,6 @@ std::wstring exeDir() {
 }
 std::wstring hyperExe() { return exeDir() + L"\\hyper.exe"; }
 std::wstring installDir() { return fs::path(exeDir()).parent_path().wstring(); }
-
-// ---------------------------------------------------------------------------
-// Ajustes (registro: HKCU\Software\HyperEZ\Editor)
-// ---------------------------------------------------------------------------
 
 const wchar_t* kKey = L"Software\\HyperEZ\\Editor";
 
@@ -284,10 +257,6 @@ void saveSettings() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Catálogo de la API (autocompletado y firmas)
-// ---------------------------------------------------------------------------
-
 void buildCatalog() {
     VM vm;
     registerStdlib(vm);
@@ -298,7 +267,7 @@ void buildCatalog() {
     for (const char* kw : {"var", "let", "const", "function", "return", "if", "else", "for", "foreach", "in", "while", "repeat", "break",
                            "continue", "class", "struct", "constructor", "this", "super", "extends", "implements", "interface", "enum",
                            "import", "from", "as", "private", "static", "true", "false", "null", "and", "or", "not", "is", "try",
-                           "catch", "finally", "throw", "async", "await", "match", "event", "on", "once", "emit", "step", "get", "set", "do"})
+                           "catch", "finally", "throw", "async", "await", "match", "event", "on", "once", "emit", "step", "get", "set", "do", "elif", "loop", "fn"})
         globals.insert(widen(kw));
     for (auto& e : vm.catalog) {
         std::wstring name = widen(e.name);
@@ -311,7 +280,7 @@ void buildCatalog() {
             if (e.kind == ApiKind::Function || e.kind == ApiKind::Method) g_signatures[owner + L"." + name] = owner + L"." + name + widen(e.signature());
         }
     }
-    for (auto& lib : vm.bundledLibraryNames()) globals.insert(widen(lib)); // import ai, import zip...
+    for (auto& lib : vm.bundledLibraryNames()) globals.insert(widen(lib));
     g_globals.assign(globals.begin(), globals.end());
     for (auto& [k, v] : g_members) {
         std::sort(v.begin(), v.end());
@@ -319,11 +288,6 @@ void buildCatalog() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Colores de sintaxis
-// ---------------------------------------------------------------------------
-
-// Los colores del tema clásico (fondo blanco) o de HyperEZ Noche: los mismos que el editor del navegador
 COLORREF C_TEXT, C_KEYWORD, C_STRING, C_NUMBER, C_COMMENT, C_TYPE, C_BUILTIN, C_ERRORBG, C_GUTTER_BG, C_GUTTER_FG,
          C_INTERP, C_FMT, C_EDIT_BG, C_GUTTER_EDGE, C_GUTTER_CUR, C_ERROR, C_PANEL_BG, C_PANEL_FG, C_HEADER_BG, C_HEADER_FG;
 
@@ -343,13 +307,11 @@ void setThemeColors(bool dark) {
     }
 }
 
-const std::set<std::string> kContextual = {"event", "on", "once", "emit", "from", "as", "step", "priority", "do"};
-// Tipos básicos (en minúscula) que se colorean cuando aparecen como anotación de tipo
+const std::set<std::string> kContextual = {"event", "on", "once", "emit", "from", "as", "step", "priority", "do", "elif", "loop"};
 const std::set<std::string> kBasicTypes = {"number", "int", "text", "bool", "list", "map", "set", "any", "void", "function", "object", "never"};
 
 struct Span { LONG a, b; COLORREF color; bool italic; };
 
-// Recoge los tramos de color de una lista de tokens; las interpolaciones ${...} se analizan de nuevo
 void collectSpans(const std::vector<Token>& toks, const Utf8Text& u, std::vector<Span>& out, int depth = 0) {
     auto cpAt = [&](int byte) { return u.cp[std::min((size_t)std::max(0, byte), u.cp.size() - 1)]; };
     for (size_t i = 0; i < toks.size(); i++) {
@@ -365,16 +327,16 @@ void collectSpans(const std::vector<Token>& toks, const Utf8Text& u, std::vector
             if (t.interpolated && depth < 4) {
                 for (auto& part : t.parts) {
                     if (!part.isExpr) continue;
-                    int end = part.loc.offset + (int)part.text.size(); // fin de la expresión (en bytes)
+                    int end = part.loc.offset + (int)part.text.size();
                     LONG ea = cpAt(part.loc.offset), eb = cpAt(end);
-                    out.push_back({cpAt(part.loc.offset - 2), ea, C_INTERP, false}); // ${
+                    out.push_back({cpAt(part.loc.offset - 2), ea, C_INTERP, false});
                     out.push_back({ea, eb, C_TEXT, false});
-                    if (!part.spec.empty()) { // "${precio:.2f}": el formato, como los números
+                    if (!part.spec.empty()) {
                         int specEnd = end + 1 + (int)part.spec.size();
                         out.push_back({eb, cpAt(specEnd), C_FMT, false});
                         end = specEnd;
                     }
-                    out.push_back({cpAt(end), cpAt(end + 1), C_INTERP, false}); // }
+                    out.push_back({cpAt(end), cpAt(end + 1), C_INTERP, false});
                     DiagnosticBag bag;
                     Lexer sub(part.text, bag, part.loc);
                     collectSpans(sub.tokenize(), u, out, depth + 1);
@@ -401,19 +363,19 @@ void highlight() {
     DiagnosticBag bag;
     Lexer lx(u.text, bag);
     std::vector<Token> toks = lx.tokenize();
+    applyContextualKeywords(toks);
     auto cpAt = [&](size_t byte) { return u.cp[std::min(byte, u.cp.size() - 1)]; };
 
     std::vector<Span> spans;
     spans.reserve(toks.size());
     collectSpans(toks, u, spans);
-    for (auto& cm : lx.comments) { // los comentarios el lexer los guarda aparte
+    for (auto& cm : lx.comments) {
         size_t start = (size_t)cm.loc.offset, end;
         if (cm.block) { end = u.text.find("*/", start + 2); end = end == std::string::npos ? u.text.size() : end + 2; }
         else { end = u.text.find('\n', start); if (end == std::string::npos) end = u.text.size(); }
         spans.push_back({cpAt(start), cpAt(end), C_COMMENT, true});
     }
     std::stable_sort(spans.begin(), spans.end(), [](const Span& x, const Span& y) { return x.a < y.a; });
-    // Unir tramos del mismo color separados solo por espacios: menos llamadas a RichEdit
     std::vector<Span> merged;
     merged.reserve(spans.size());
     for (auto& s : spans) {
@@ -451,7 +413,6 @@ void highlight() {
                 sf->Release();
             }
         }
-        // fondo rojo claro donde hay errores
         for (auto& p : g_problems) {
             if (!p.error || p.cpEnd <= p.cpStart) continue;
             r->SetRange(p.cpStart, p.cpEnd);
@@ -464,10 +425,6 @@ void highlight() {
     g_doc->Undo(tomResume, nullptr);
     g_formatting = false;
 }
-
-// ---------------------------------------------------------------------------
-// Comprobación de errores (el mismo analizador que el compilador)
-// ---------------------------------------------------------------------------
 
 void updateStatus();
 void showProblems();
@@ -531,10 +488,6 @@ void showProblems() {
         SendMessageW(g_bottomTabs, TCM_SETITEMW, 0, (LPARAM)&it);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Barra de estado, título y números de línea
-// ---------------------------------------------------------------------------
 
 void updateTabLabel(int i);
 
@@ -640,11 +593,6 @@ LRESULT CALLBACK gutterProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(h, msg, wp, lp);
 }
 
-// ---------------------------------------------------------------------------
-// Disposición de la ventana
-// ---------------------------------------------------------------------------
-
-// Alto de la tira de pestañas de un control de pestañas (sin su área de contenido)
 int tabStripHeight(HWND tabs, int width) {
     RECT r{0, 0, width, S(300)};
     SendMessageW(tabs, TCM_ADJUSTRECT, FALSE, (LPARAM)&r);
@@ -677,7 +625,6 @@ void layout() {
             top = th;
         }
     }
-    // Explorador a la izquierda, con su separador; lo demás empieza en x0 y mide w de ancho
     int x0 = 0;
     g_vsplitLeft = g_vsplitRight = -1;
     if (g_tree) {
@@ -703,7 +650,6 @@ void layout() {
         MoveWindow(g_tabs, x0, top, w, th, TRUE);
         top += th;
     }
-    // El panel de abajo se puede agrandar arrastrando el separador; el código conserva al menos S(80)
     int gap = g_showPanel ? S(5) : 0;
     int panelH = 0;
     if (g_showPanel) panelH = std::max(S(60), std::min(S(g_panelHeight), (int)rc.bottom - statusH - top - gap - S(80)));
@@ -715,7 +661,7 @@ void layout() {
     MoveWindow(g_gutter, x0, top, gw, editBottom - top, TRUE);
     ShowWindow(g_gutter, g_showNumbers ? SW_SHOW : SW_HIDE);
     if (g_edit) MoveWindow(g_edit, x0 + gw, top, w - gw, editBottom - top, TRUE);
-    if (g_showPanel) { RECT gr{x0, editBottom, rc.right, bottom}; InvalidateRect(g_wnd, &gr, TRUE); } // la franja del separador
+    if (g_showPanel) { RECT gr{x0, editBottom, rc.right, bottom}; InvalidateRect(g_wnd, &gr, TRUE); }
     if (g_bottomTabs) {
         ShowWindow(g_bottomTabs, g_showPanel ? SW_SHOW : SW_HIDE);
         int bh = tabStripHeight(g_bottomTabs, w);
@@ -741,7 +687,6 @@ void applyFontTo(HWND edit, ITextDocument* tom) {
     if (tom) tom->Undo(tomSuspend, nullptr);
     SendMessageW(edit, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
     SendMessageW(edit, EM_SETCHARFORMAT, SCF_DEFAULT, (LPARAM)&cf);
-    // tabuladores de 4 espacios
     PARAFORMAT2 pf{};
     pf.cbSize = sizeof pf;
     pf.dwMask = PFM_TABSTOPS;
@@ -771,10 +716,6 @@ void applyFont() {
     layout();
     updateStatus();
 }
-
-// ---------------------------------------------------------------------------
-// Archivos
-// ---------------------------------------------------------------------------
 
 void setText(const std::wstring& w) {
     g_formatting = true;
@@ -807,7 +748,7 @@ void explorerFollow(const std::wstring& file);
 bool openFile(const std::wstring& path) {
     std::wstring abs = fs::absolute(path).wstring();
     storeCurrent();
-    for (size_t i = 0; i < g_docs.size(); i++) // ya abierto: ir a su pestaña
+    for (size_t i = 0; i < g_docs.size(); i++)
         if (!g_docs[i].file.empty() && _wcsicmp(g_docs[i].file.c_str(), abs.c_str()) == 0) { activate((int)i); return true; }
     std::string data;
     if (!readFile(narrow(path), data)) {
@@ -823,7 +764,6 @@ bool openFile(const std::wstring& path) {
         else if (w[i] == L'\n') clean += L'\r';
         else clean += w[i];
     }
-    // se reutiliza la pestaña activa si es un documento nuevo que no se ha tocado
     bool reuse = g_cur >= 0 && g_file.empty() && !g_dirty;
     if (!reuse) addTab();
     g_file = abs;
@@ -854,7 +794,6 @@ bool writeTo(const std::wstring& path) {
     return true;
 }
 
-// Documentos\HyperEZ: la carpeta de "mis programas" (la crea el instalador; si no existe, se crea aquí)
 std::wstring projectsDir() {
     PWSTR p = nullptr;
     std::wstring dir;
@@ -884,7 +823,6 @@ bool saveAs(const wchar_t* title = L"Guardar programa HyperEZ") {
 
 bool save() { return g_file.empty() ? saveAs() : writeTo(g_file); }
 
-// ¿Se puede descartar el texto actual? (pregunta si hay cambios sin guardar)
 bool confirmDiscard() {
     if (!g_dirty) return true;
     std::wstring name = g_file.empty() ? L"sin título.hez" : fs::path(g_file).filename().wstring();
@@ -955,10 +893,6 @@ void openDialog() {
     if (GetOpenFileNameW(&of)) openFile(buf);
 }
 
-// ---------------------------------------------------------------------------
-// Ejecutar
-// ---------------------------------------------------------------------------
-
 void launch(const std::wstring& args, const std::wstring& cwd, bool viaCmd = false) {
     std::wstring exe = hyperExe();
     if (!fs::exists(exe)) {
@@ -977,21 +911,16 @@ void launch(const std::wstring& args, const std::wstring& cwd, bool viaCmd = fal
     }
 }
 
-// Guarda (pidiendo nombre si hace falta) antes de ejecutar
 bool ensureSaved() {
     if (g_file.empty()) return saveAs(L"Guarda tu programa para ejecutarlo (se guarda como .hez)");
     return !g_dirty || save();
 }
 
-
-// Ejecutar sin guardar: el texto del editor va a un archivo temporal y hyper lo ejecuta como si fuera el
-// archivo de verdad (hyper run --as): así funcionan sus importaciones, System.scriptDir y los errores.
 std::wstring runTempDir() {
     wchar_t t[MAX_PATH];
     GetTempPathW(MAX_PATH, t);
     return std::wstring(t) + L"HyperEZ\\ejecutar";
 }
-// Los argumentos de "hyper run" para el texto de ahora (y la carpeta en la que se ejecuta); vacío si falla
 std::wstring runTarget(std::wstring& cwd) {
     std::wstring docs = projectsDir();
     std::wstring real = !g_file.empty() ? g_file : (docs.empty() ? (fs::current_path() / L"sin-titulo.hez").wstring() : docs + L"\\sin-titulo.hez");
@@ -1030,10 +959,6 @@ void runProgram() {
     launch(L"run --pause " + target, cwd);
 }
 
-// ---------------------------------------------------------------------------
-// Edición: sangría, comentarios, duplicar, ir a línea, autocompletado
-// ---------------------------------------------------------------------------
-
 std::wstring lineText(LONG line) {
     LONG start = (LONG)SendMessageW(g_edit, EM_LINEINDEX, line, 0);
     LONG len = (LONG)SendMessageW(g_edit, EM_LINELENGTH, start, 0);
@@ -1047,7 +972,6 @@ std::wstring lineText(LONG line) {
 
 void replaceSel(const std::wstring& s) { SendMessageW(g_edit, EM_REPLACESEL, TRUE, (LPARAM)s.c_str()); }
 
-// El carácter en una posición del editor (0 si no hay)
 wchar_t charAt(LONG pos) {
     if (pos < 0) return 0;
     wchar_t buf[4] = {};
@@ -1060,7 +984,6 @@ wchar_t closerOf(wchar_t c) {
     switch (c) { case L'(': return L')'; case L'[': return L']'; case L'{': return L'}'; case L'"': return L'"'; case L'\'': return L'\''; default: return 0; }
 }
 
-// Aplica f a cada línea seleccionada (sangrar, comentar...)
 template <class F> void forSelectedLines(F f) {
     CHARRANGE sel;
     SendMessageW(g_edit, EM_EXGETSEL, 0, (LPARAM)&sel);
@@ -1118,7 +1041,6 @@ void duplicateLine() {
     replaceSel(L"\r" + t);
 }
 
-// Formatear documento (lo mismo que "hyper fmt"): se puede deshacer con Ctrl+Z
 void formatDocument() {
     std::wstring w = editorText();
     FormatResult r = formatSource(toUtf8(w).text);
@@ -1129,7 +1051,7 @@ void formatDocument() {
     }
     std::wstring out;
     for (wchar_t c : widen(r.text)) out += c == L'\n' ? L'\r' : c;
-    if (!out.empty() && out.back() == L'\r' && (w.empty() || w.back() != L'\r')) out.pop_back(); // RichEdit ya tiene el último párrafo
+    if (!out.empty() && out.back() == L'\r' && (w.empty() || w.back() != L'\r')) out.pop_back();
     if (out == w) { SendMessageW(g_status, SB_SETTEXTW, 1, (LPARAM)L"  El formato ya era correcto"); return; }
     CHARRANGE sel;
     SendMessageW(g_edit, EM_EXGETSEL, 0, (LPARAM)&sel);
@@ -1138,7 +1060,6 @@ void formatDocument() {
     CHARRANGE all{0, -1};
     SendMessageW(g_edit, EM_EXSETSEL, 0, (LPARAM)&all);
     replaceSel(out);
-    // volver a la misma línea (al final de su sangría) y a la misma zona visible
     LONG cp = (LONG)SendMessageW(g_edit, EM_LINEINDEX, line, 0);
     if (cp < 0) cp = 0;
     std::wstring lt = lineText(line);
@@ -1150,7 +1071,6 @@ void formatDocument() {
     SendMessageW(g_status, SB_SETTEXTW, 1, (LPARAM)L"  ✓ Documento formateado (Ctrl+Z lo deshace)");
 }
 
-// Al escribir "(" tras una función, su firma aparece en la barra de estado
 void showCallSignature() {
     CHARRANGE sel;
     SendMessageW(g_edit, EM_EXGETSEL, 0, (LPARAM)&sel);
@@ -1168,7 +1088,6 @@ void showCallSignature() {
     if (it != g_signatures.end()) SendMessageW(g_status, SB_SETTEXTW, 1, (LPARAM)(L"  " + it->second).c_str());
 }
 
-// Ventana sencilla para pedir un texto (ir a la línea)
 std::wstring g_inputResult;
 bool g_inputDone = false, g_inputOk = false;
 LRESULT CALLBACK inputProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
@@ -1241,7 +1160,6 @@ void gotoLine(int line, int col = 1) {
     SetFocus(g_edit);
 }
 
-// --- autocompletado ---
 LONG g_completeStart = 0;
 std::wstring currentWord(LONG& start, std::wstring* owner = nullptr) {
     CHARRANGE sel;
@@ -1266,7 +1184,6 @@ std::wstring currentWord(LONG& start, std::wstring* owner = nullptr) {
 
 void hideComplete() { ShowWindow(g_complete, SW_HIDE); }
 
-// En la barra de estado, la firma de lo que está seleccionado en la lista ("Console.print(...)")
 std::wstring g_completeOwner;
 void showCompleteSignature() {
     int i = (int)SendMessageW(g_complete, LB_GETCURSEL, 0, 0);
@@ -1288,7 +1205,6 @@ void showComplete() {
     if (!owner.empty() && g_members.count(owner)) { cands = g_members[owner]; g_completeOwner = owner; }
     else {
         cands = g_globals;
-        // nombres del propio documento
         std::wstring all = editorText();
         std::set<std::wstring> seen(cands.begin(), cands.end());
         std::wstring cur;
@@ -1332,16 +1248,12 @@ void acceptComplete() {
     if (g_signatures.count(key)) SendMessageW(g_status, SB_SETTEXTW, 1, (LPARAM)(L"  " + g_signatures[key]).c_str());
 }
 
-// ---------------------------------------------------------------------------
-// Explorador: la carpeta del proyecto a la izquierda (como en VS Code), con carpetas, archivos nuevos,
-// renombrar, eliminar (a la papelera) y los iconos de HyperEZ para los .hez
-// ---------------------------------------------------------------------------
 void setCheck(int cmd, bool on);
-std::vector<std::wstring> g_treePaths;   // lParam de cada elemento → su ruta
-std::map<std::wstring, int> g_extIcons;  // icono del sistema para cada extensión
-bool g_treeSilent = false;               // seleccionar sin abrir (al sincronizar con la pestaña activa)
-std::wstring g_treeNewFile;              // archivo recién creado: se abre al terminar de ponerle nombre
-bool g_explorerFollowNext = false;       // el próximo archivo que se abra decide la carpeta del explorador
+std::vector<std::wstring> g_treePaths;
+std::map<std::wstring, int> g_extIcons;
+bool g_treeSilent = false;
+std::wstring g_treeNewFile;
+bool g_explorerFollowNext = false;
 enum : UINT { WM_APP_TREEREFRESH = WM_APP + 30 };
 
 std::wstring lowerW(std::wstring s) { for (auto& c : s) c = (wchar_t)towlower(c); return s; }
@@ -1355,7 +1267,6 @@ int addStockIcon(SHSTOCKICONID id) {
     return r;
 }
 
-// Los iconos de HyperEZ (assets/icons/tema, recursos 100-140 de editor.rc); si falta uno, el de Windows
 int addResIcon(int id, SHSTOCKICONID fallback) {
     HICON ic = (HICON)LoadImageW(g_inst, MAKEINTRESOURCEW(id), IMAGE_ICON, S(16), S(16), 0);
     if (!ic) return addStockIcon(fallback);
@@ -1364,7 +1275,6 @@ int addResIcon(int id, SHSTOCKICONID fallback) {
     return r;
 }
 
-// Las carpetas de un proyecto HyperEZ, cada una con su icono (cerrada y abierta)
 const wchar_t* const kHyperFolders[] = {L"hypersettings", L"hypercode", L"hypertests", L"hyperlibs", L"hypertools",
                                         L"hyperassets", L"hyperdata", L"hyperdocs", L"hyperbuild"};
 enum { IMG_FOLDER = 0, IMG_FOLDEROPEN = 1, IMG_HEZ = 2, IMG_FILE = 3, IMG_HYPERFOLDERS = 4, IMG_PROJECT = 22, IMG_MD, IMG_JSON, IMG_IMAGE,
@@ -1372,15 +1282,15 @@ enum { IMG_FOLDER = 0, IMG_FOLDEROPEN = 1, IMG_HEZ = 2, IMG_FILE = 3, IMG_HYPERF
 
 void initTreeImages() {
     g_treeImages = ImageList_Create(S(16), S(16), ILC_COLOR32 | ILC_MASK, 32, 8);
-    addResIcon(100, SIID_FOLDER);     // 0: carpeta
-    addResIcon(101, SIID_FOLDEROPEN); // 1: carpeta abierta
-    if (addResIcon(131, SIID_DOCNOASSOC) < 0) addResIcon(2, SIID_DOCNOASSOC); // 2: programa de HyperEZ
-    addResIcon(130, SIID_DOCNOASSOC); // 3: archivo
-    for (int k = 0; k < (int)std::size(kHyperFolders); k++) { // 4..21: hypersettings, hypercode...
+    addResIcon(100, SIID_FOLDER);
+    addResIcon(101, SIID_FOLDEROPEN);
+    if (addResIcon(131, SIID_DOCNOASSOC) < 0) addResIcon(2, SIID_DOCNOASSOC);
+    addResIcon(130, SIID_DOCNOASSOC);
+    for (int k = 0; k < (int)std::size(kHyperFolders); k++) {
         addResIcon(102 + 2 * k, SIID_FOLDER);
         addResIcon(103 + 2 * k, SIID_FOLDEROPEN);
     }
-    for (int r = 132; r <= 140; r++) addResIcon(r, SIID_DOCNOASSOC); // 22..30: proyecto.json, md, json, imagen...
+    for (int r = 132; r <= 140; r++) addResIcon(r, SIID_DOCNOASSOC);
     TreeView_SetImageList(g_tree, g_treeImages, TVSIL_NORMAL);
 }
 
@@ -1440,7 +1350,6 @@ HTREEITEM treeInsert(HTREEITEM parent, const fs::path& p, bool dir) {
     return TreeView_InsertItem(g_tree, &is);
 }
 
-// Mete en el árbol lo que hay en una carpeta: carpetas primero y por nombre (sin los ocultos)
 void treeFill(HTREEITEM parent, const std::wstring& dir) {
     std::vector<std::pair<bool, fs::path>> items;
     std::error_code ec;
@@ -1457,7 +1366,7 @@ void treeFill(HTREEITEM parent, const std::wstring& dir) {
         return _wcsicmp(a.second.filename().c_str(), b.second.filename().c_str()) < 0;
     });
     for (auto& [d, p] : items) treeInsert(parent, p, d);
-    if (items.empty() && parent != TVI_ROOT) { // carpeta vacía: sin el triángulo
+    if (items.empty() && parent != TVI_ROOT) {
         TVITEMW it{};
         it.mask = TVIF_CHILDREN;
         it.hItem = parent;
@@ -1484,7 +1393,6 @@ void treeExpandSaved(HTREEITEM item, const std::set<std::wstring>& open) {
         }
 }
 
-// El elemento de una ruta (abriendo las carpetas que haga falta) o null si no está en la carpeta del proyecto
 HTREEITEM treeFind(const std::wstring& path) {
     if (g_explorerRoot.empty() || path.empty()) return nullptr;
     fs::path rel = fs::path(path).lexically_relative(g_explorerRoot);
@@ -1532,12 +1440,10 @@ void explorerRefresh() {
 }
 
 void explorerSetRoot(const std::wstring& dir);
-// Al abrir un archivo: si el explorador no tiene carpeta (o se abrió desde Windows), la del archivo; si no, marcarlo
 void explorerFollow(const std::wstring& file) {
     if (!g_tree || file.empty()) return;
     if (g_explorerRoot.empty() || g_explorerFollowNext) {
         g_explorerFollowNext = false;
-        // la raíz del proyecto (la carpeta con hypersettings/) si el archivo está en uno; si no, su carpeta
         fs::path dir = fs::path(file).parent_path(), root = dir;
         std::error_code ec;
         for (fs::path d = dir; !d.empty(); d = d.parent_path()) {
@@ -1549,7 +1455,6 @@ void explorerFollow(const std::wstring& file) {
     treeSelectPath(file);
 }
 
-// "nombre" de hypersettings/proyecto.json ("" si la carpeta no es un proyecto de HyperEZ)
 std::wstring projectName(const std::wstring& dir) {
     std::string data;
     if (!readFile(narrow((fs::path(dir) / L"hypersettings" / L"proyecto.json").wstring()), data)) return L"";
@@ -1570,7 +1475,6 @@ void explorerSetRoot(const std::wstring& dir) {
     explorerRefresh();
 }
 
-// Elegir la carpeta del proyecto
 bool chooseExplorerFolder() {
     IFileOpenDialog* dlg = nullptr;
     if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) return false;
@@ -1631,7 +1535,6 @@ void treeNew(bool folder) {
     TreeView_EditLabel(g_tree, it);
 }
 
-// Un archivo o carpeta abiertos en pestañas que cambian de sitio
 void renameOpenDocs(const std::wstring& from, const std::wstring& to) {
     storeCurrent();
     std::wstring f = lowerW(from);
@@ -1715,7 +1618,6 @@ void treeCommand(int cmd) {
     }
 }
 
-// Notificaciones del árbol (desde WM_NOTIFY). Devuelve true si la ha atendido y pone el resultado en r.
 bool treeNotify(NMHDR* n, LRESULT& r) {
     r = 0;
     switch (n->code) {
@@ -1737,7 +1639,7 @@ bool treeNotify(NMHDR* n, LRESULT& r) {
             if (!it || !(ht.flags & (TVHT_ONITEMLABEL | TVHT_ONITEMICON))) return true;
             std::wstring p = treePath(it);
             std::error_code ec;
-            if (fs::is_directory(p, ec)) TreeView_Expand(g_tree, it, TVE_TOGGLE); // un clic abre o cierra la carpeta
+            if (fs::is_directory(p, ec)) TreeView_Expand(g_tree, it, TVE_TOGGLE);
             else if (!p.empty()) { TreeView_SelectItem(g_tree, it); openFile(p); }
             return true;
         }
@@ -1767,7 +1669,7 @@ bool treeNotify(NMHDR* n, LRESULT& r) {
             std::wstring p = treePath(d->item.hItem);
             std::error_code ec;
             HWND ed = TreeView_GetEditControl(g_tree);
-            if (ed && !fs::is_directory(p, ec)) { // seleccionar el nombre sin la extensión
+            if (ed && !fs::is_directory(p, ec)) {
                 std::wstring name = fs::path(p).filename().wstring();
                 size_t dot = name.rfind(L'.');
                 SendMessageW(ed, EM_SETSEL, 0, dot == std::wstring::npos || dot == 0 ? (LPARAM)-1 : (LPARAM)dot);
@@ -1804,12 +1706,11 @@ bool treeNotify(NMHDR* n, LRESULT& r) {
     }
 }
 
-// Teclas especiales dentro del editor
 void gotoDefinition();
 enum : UINT { WM_APP_DEFINITION = WM_APP + 40 };
 LRESULT CALLBACK editProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     bool completing = IsWindowVisible(g_complete);
-    if (msg == WM_LBUTTONUP && (wp & MK_CONTROL)) PostMessageW(g_wnd, WM_APP_DEFINITION, 0, 0); // Ctrl+clic
+    if (msg == WM_LBUTTONUP && (wp & MK_CONTROL)) PostMessageW(g_wnd, WM_APP_DEFINITION, 0, 0);
     if (msg == WM_KEYDOWN) {
         bool ctrl = GetKeyState(VK_CONTROL) < 0, shift = GetKeyState(VK_SHIFT) < 0;
         if (completing) {
@@ -1832,7 +1733,6 @@ LRESULT CALLBACK editProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
         if (wp == VK_BACK && !ctrl) {
-            // Retroceso entre una pareja vacía ( "|" o (|) ) borra las dos
             CHARRANGE sel;
             SendMessageW(h, EM_EXGETSEL, 0, (LPARAM)&sel);
             wchar_t prev = charAt(sel.cpMin - 1), next = charAt(sel.cpMin);
@@ -1844,7 +1744,6 @@ LRESULT CALLBACK editProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             }
         }
         if (wp == VK_RETURN && !ctrl) {
-            // Sangría automática: la misma que la línea actual, y 4 más tras una llave abierta
             CHARRANGE sel;
             SendMessageW(h, EM_EXGETSEL, 0, (LPARAM)&sel);
             LONG line = (LONG)SendMessageW(h, EM_EXLINEFROMCHAR, 0, sel.cpMin);
@@ -1856,7 +1755,6 @@ LRESULT CALLBACK editProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             while (!trimmed.empty() && (trimmed.back() == L' ' || trimmed.back() == L'\t')) trimmed.pop_back();
             bool opens = !trimmed.empty() && (trimmed.back() == L'{' || trimmed.back() == L'[' || trimmed.back() == L'(');
             if (opens && sel.cpMin == sel.cpMax && charAt(sel.cpMin) == closerOf(trimmed.back())) {
-                // entre {} : el cursor en una línea nueva con sangría y el cierre debajo
                 replaceSel(L"\r" + indent + L"    \r" + indent);
                 LONG caret = sel.cpMin + 1 + (LONG)indent.size() + 4;
                 CHARRANGE cr{caret, caret};
@@ -1869,22 +1767,21 @@ LRESULT CALLBACK editProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         }
         if (ctrl && wp == VK_SPACE) { showComplete(); return 0; }
         if (wp == VK_INSERT && !ctrl && !shift) {
-            g_overwrite = !g_overwrite; // RichEdit cambia de modo con Insert: lo mostramos en la barra de estado
+            g_overwrite = !g_overwrite;
             LRESULT r = CallWindowProcW(g_editProc, h, msg, wp, lp);
             updateStatus();
             return r;
         }
     }
     if (msg == WM_CHAR) {
-        if (wp == L' ' && GetKeyState(VK_CONTROL) < 0) return 0; // Ctrl+Espacio ya gestionado
+        if (wp == L' ' && GetKeyState(VK_CONTROL) < 0) return 0;
         if (wp == L'(' || wp == L'[' || wp == L'{' || wp == L'"' || wp == L'\'' || wp == L')' || wp == L']' || wp == L'}') {
             CHARRANGE sel;
             SendMessageW(h, EM_EXGETSEL, 0, (LPARAM)&sel);
             wchar_t c = (wchar_t)wp, next = charAt(sel.cpMax), prev = charAt(sel.cpMin - 1);
-            // saltar el cierre que ya está escrito
             if ((c == L')' || c == L']' || c == L'}' || c == L'"' || c == L'\'') && sel.cpMin == sel.cpMax && next == c) {
                 bool skip = true;
-                if (c == L'"' || c == L'\'') { // la comilla, solo si cierra un texto abierto en esta línea
+                if (c == L'"' || c == L'\'') {
                     LONG line = (LONG)SendMessageW(h, EM_EXLINEFROMCHAR, 0, sel.cpMin);
                     LONG ls = (LONG)SendMessageW(h, EM_LINEINDEX, line, 0);
                     std::wstring before = lineText(line).substr(0, (size_t)std::max(0L, sel.cpMin - ls));
@@ -1898,7 +1795,7 @@ LRESULT CALLBACK editProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             }
             wchar_t close = closerOf(c);
             if (close && (c != L'}' && c != L')' && c != L']')) {
-                if (sel.cpMin != sel.cpMax) { // rodear la selección
+                if (sel.cpMin != sel.cpMax) {
                     std::wstring text((size_t)(sel.cpMax - sel.cpMin) + 1, L'\0');
                     LRESULT n = SendMessageW(h, EM_GETSELTEXT, 0, (LPARAM)text.data());
                     text.resize((size_t)n);
@@ -1921,7 +1818,6 @@ LRESULT CALLBACK editProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             }
         }
         if (wp == L'}') {
-            // al cerrar un bloque en una línea con solo espacios, quitar un nivel de sangría
             CHARRANGE sel;
             SendMessageW(h, EM_EXGETSEL, 0, (LPARAM)&sel);
             LONG line = (LONG)SendMessageW(h, EM_EXLINEFROMCHAR, 0, sel.cpMin);
@@ -1954,10 +1850,6 @@ LRESULT CALLBACK editProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_KILLFOCUS && (HWND)wp != g_complete) hideComplete();
     return CallWindowProcW(g_editProc, h, msg, wp, lp);
 }
-
-// ---------------------------------------------------------------------------
-// Buscar y reemplazar
-// ---------------------------------------------------------------------------
 
 bool findNext(const std::wstring& what, DWORD flags, bool wrap = true) {
     if (what.empty()) return false;
@@ -2023,16 +1915,7 @@ void onFindMessage(FINDREPLACEW* fr) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Menús y barra de herramientas
-// ---------------------------------------------------------------------------
-
 void setCheck(int cmd, bool on);
-
-// ---------------------------------------------------------------------------
-// Pestañas: cada documento tiene su propio control de texto. Los globales g_edit, g_doc, g_file,
-// g_dirty, g_savedText y g_problems son siempre los del documento activo (se guardan al cambiar).
-// ---------------------------------------------------------------------------
 
 void showProblems();
 void applyFontTo(HWND edit, ITextDocument* tom);
@@ -2047,7 +1930,7 @@ Doc makeEditor() {
     SendMessageW(d.edit, EM_SETTEXTMODE, TM_RICHTEXT | TM_MULTILEVELUNDO | TM_MULTICODEPAGE, 0);
     SendMessageW(d.edit, EM_SETUNDOLIMIT, 500, 0);
     SendMessageW(d.edit, EM_SETBKGNDCOLOR, 0, C_EDIT_BG);
-    if (g_dark) SetWindowTheme(d.edit, L"DarkMode_Explorer", nullptr); // barras de desplazamiento oscuras
+    if (g_dark) SetWindowTheme(d.edit, L"DarkMode_Explorer", nullptr);
     SendMessageW(d.edit, EM_SETMARGINS, EC_LEFTMARGIN, S(6));
     SendMessageW(d.edit, EM_SETTARGETDEVICE, 0, g_wrap ? 0 : 1);
     SendMessageW(d.edit, EM_SETLANGOPTIONS, 0, SendMessageW(d.edit, EM_GETLANGOPTIONS, 0, 0) & ~IMF_AUTOFONT);
@@ -2063,7 +1946,6 @@ Doc makeEditor() {
     return d;
 }
 
-// Guarda en su Doc el estado del documento activo
 void storeCurrent() {
     if (g_cur < 0 || g_cur >= (int)g_docs.size()) return;
     Doc& d = g_docs[(size_t)g_cur];
@@ -2132,7 +2014,6 @@ int addTab() {
 
 bool confirmDiscard();
 
-// Cierra una pestaña (pregunta si tiene cambios). Siempre queda al menos una.
 bool closeTab(int i) {
     if (i < 0 || i >= (int)g_docs.size()) return false;
     activate(i);
@@ -2157,7 +2038,6 @@ bool closeTab(int i) {
     return true;
 }
 
-// Pestaña de documentos: el botón central del ratón cierra la pestaña
 WNDPROC g_tabsProc = nullptr;
 LRESULT CALLBACK tabsProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_MBUTTONUP) {
@@ -2169,14 +2049,10 @@ LRESULT CALLBACK tabsProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     return CallWindowProcW(g_tabsProc, h, msg, wp, lp);
 }
 
-// ---------------------------------------------------------------------------
-// Panel de salida: ejecutar el programa dentro del editor (Mayús+F5)
-// ---------------------------------------------------------------------------
-
 enum : UINT { WM_APP_OUTPUT = WM_APP + 20, WM_APP_DONE = WM_APP + 21 };
 HANDLE g_runProc = nullptr;
 double g_runStart = 0;
-std::string g_outCarry; // trozo de un carácter UTF-8 que llegó partido
+std::string g_outCarry;
 
 void setBottomPage(int page) {
     g_bottomPage = page;
@@ -2202,7 +2078,6 @@ void appendOutput(const std::wstring& w) {
 void appendOutputUtf8(const std::string& chunk) {
     std::string s = g_outCarry + chunk;
     g_outCarry.clear();
-    // no cortar un carácter UTF-8 por la mitad
     size_t end = s.size(), i = s.size();
     int back = 0;
     while (i > 0 && back < 4 && ((unsigned char)s[i - 1] & 0xC0) == 0x80) { i--; back++; }
@@ -2221,7 +2096,6 @@ double nowSeconds() {
     return (double)c.QuadPart / (double)f.QuadPart;
 }
 
-// Entorno del proceso actual con NO_COLOR=1 (sin códigos de color en el panel)
 std::vector<wchar_t> environmentWithNoColor() {
     std::vector<wchar_t> env;
     LPWCH cur = GetEnvironmentStringsW();
@@ -2320,7 +2194,6 @@ void runFinished(DWORD code) {
     SendMessageW(g_toolbar, TB_ENABLEBUTTON, CMD_STOP, FALSE);
 }
 
-// Doble clic en una línea de la salida con "archivo.hez:12:5" (o "(archivo.hez:12)") lleva a esa línea
 WNDPROC g_outputProc = nullptr;
 LRESULT CALLBACK outputProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     LRESULT r = CallWindowProcW(g_outputProc, h, msg, wp, lp);
@@ -2346,10 +2219,6 @@ LRESULT CALLBACK outputProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     return r;
 }
 
-// ---------------------------------------------------------------------------
-// Imprimir (Ctrl+P): con los colores del código, el nombre del archivo y el número de página
-// ---------------------------------------------------------------------------
-
 void printDocument() {
     PRINTDLGW pd{};
     pd.lStructSize = sizeof pd;
@@ -2367,7 +2236,7 @@ void printDocument() {
         int ox = GetDeviceCaps(dc, PHYSICALOFFSETX), oy = GetDeviceCaps(dc, PHYSICALOFFSETY);
         auto twX = [&](int px) { return MulDiv(px, 1440, dpiX); };
         auto twY = [&](int px) { return MulDiv(px, 1440, dpiY); };
-        int margin = 1134; // 2 cm
+        int margin = 1134;
         FORMATRANGE fr{};
         fr.hdc = fr.hdcTarget = dc;
         fr.rcPage = {0, 0, twX(pw), twY(ph)};
@@ -2401,7 +2270,6 @@ void printDocument() {
     if (pd.hDevNames) GlobalFree(pd.hDevNames);
 }
 
-// Ver → Fuente: solo fuentes de ancho fijo
 void chooseFont() {
     LOGFONTW lf{};
     lf.lfHeight = -MulDiv(g_fontPt, g_dpi, 72);
@@ -2418,15 +2286,11 @@ void chooseFont() {
     highlight();
 }
 
-// ---------------------------------------------------------------------------
-// Menús
-// ---------------------------------------------------------------------------
-
 void collectExamples() {
     g_examples.clear();
     std::error_code ec;
     fs::path dir = fs::path(installDir()) / L"examples";
-    if (!fs::exists(dir, ec)) dir = fs::path(exeDir()) / L".." / L".." / L"examples"; // desde el repositorio (build/)
+    if (!fs::exists(dir, ec)) dir = fs::path(exeDir()) / L".." / L".." / L"examples";
     if (!fs::exists(dir, ec)) return;
     for (auto it = fs::recursive_directory_iterator(dir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
         if (it->path().extension() == L".hz" || it->path().extension() == L".hez") g_examples.push_back(it->path().wstring());
@@ -2481,7 +2345,6 @@ HMENU buildMenu() {
     AppendMenuW(file, MF_STRING, CMD_CLOSEOTHERS, L"Cerrar las &demás pestañas");
     AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(file, MF_STRING, CMD_PRINT, L"&Imprimir...\tCtrl+P");
-    AppendMenuW(file, MF_STRING, CMD_SHARE, L"Compartir en el editor &web...");
     AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(file, MF_STRING, CMD_EXIT, L"&Salir\tAlt+F4");
 
@@ -2539,8 +2402,7 @@ HMENU buildMenu() {
     AppendMenuW(help, MF_STRING, CMD_HELP_API, L"&Referencia de todas las funciones");
     AppendMenuW(help, MF_STRING, CMD_HELP_KEYS, L"&Atajos de teclado");
     AppendMenuW(help, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(help, MF_STRING, CMD_HELP_WEB, L"La &web de HyperEZ");
-    AppendMenuW(help, MF_STRING, CMD_HELP_WEBEDITOR, L"HyperEZ en el &navegador (sin instalar)");
+    AppendMenuW(help, MF_STRING, CMD_HELP_WEB, L"HyperEZ en &GitHub");
     AppendMenuW(help, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(help, MF_STRING, CMD_ABOUT, L"Acerca de &HyperEZ");
 
@@ -2555,7 +2417,6 @@ HMENU buildMenu() {
 
 void setCheck(int cmd, bool on) { CheckMenuItem(GetMenu(g_wnd), cmd, on ? MF_CHECKED : MF_UNCHECKED); }
 
-// Documentación: la versión HTML instalada (docs-html) o, si no está, la carpeta docs
 void openDoc(const wchar_t* html, const wchar_t* md) {
     std::error_code ec;
     for (const wchar_t* candidate : {html, md}) {
@@ -2565,18 +2426,13 @@ void openDoc(const wchar_t* html, const wchar_t* md) {
     ShellExecuteW(g_wnd, L"open", widen(std::string(HYPEREZ_REPO_URL) + "/tree/main/docs").c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
-// ---------------------------------------------------------------------------
-// Tema oscuro (HyperEZ Noche), nuevo proyecto y compartir en el editor web
-// ---------------------------------------------------------------------------
-
-// La barra de título oscura (Windows 10 2004 y posteriores; en los anteriores no hace nada)
 void darkTitle(HWND h, bool dark) {
     using Fn = HRESULT(WINAPI*)(HWND, DWORD, LPCVOID, DWORD);
     static Fn fn = (Fn)(void*)GetProcAddress(LoadLibraryW(L"dwmapi.dll"), "DwmSetWindowAttribute");
     if (!fn) return;
     BOOL v = dark;
     if (FAILED(fn(h, 20, &v, sizeof v))) fn(h, 19, &v, sizeof v);
-    SetWindowPos(h, nullptr, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED); // repintar el marco
+    SetWindowPos(h, nullptr, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 }
 
 void applyTheme() {
@@ -2598,7 +2454,6 @@ void applyTheme() {
     for (HWND w : {g_output, g_panel, g_complete}) if (w) SetWindowTheme(w, theme, nullptr);
     darkTitle(g_wnd, g_dark);
     applyFont();
-    // cada pestaña con los colores nuevos
     int cur = g_cur;
     for (int i = 0; i < (int)g_docs.size(); i++) {
         if (i == cur) continue;
@@ -2611,7 +2466,6 @@ void applyTheme() {
     RedrawWindow(g_wnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
 }
 
-// Ejecuta hyper.exe sin ventana y espera; devuelve el código de salida y lo que escribió
 DWORD runHyperHidden(const std::wstring& args, const std::wstring& cwd, std::string& out) {
     std::wstring cmd = L"\"" + hyperExe() + L"\" " + args;
     SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
@@ -2639,7 +2493,6 @@ DWORD runHyperHidden(const std::wstring& args, const std::wstring& cwd, std::str
     return code;
 }
 
-// Archivo → Nuevo proyecto: el tipo, el nombre y hyper new en Documentos\HyperEZ; luego se abre en el Explorador
 void newProject() {
     struct Kind { const wchar_t* label; const wchar_t* kind; const wchar_t* name; };
     static const Kind kinds[] = {
@@ -2680,49 +2533,6 @@ void newProject() {
     openFile((dir / L"main.hez").wstring());
     SendMessageW(g_status, SB_SETTEXTW, 0, (LPARAM)(L"Proyecto " + name + L" creado: F5 lo ejecuta").c_str());
 }
-
-// Archivo → Compartir en el editor web: un enlace con el programa dentro (como el botón Compartir del navegador)
-void shareToWeb() {
-    std::wstring text = editorText();
-    for (auto& c : text) if (c == L'\r') c = L'\n';
-    std::string code = narrow(text);
-    static const char* b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    std::string enc;
-    for (size_t i = 0; i < code.size(); i += 3) {
-        unsigned v = (unsigned char)code[i] << 16;
-        if (i + 1 < code.size()) v |= (unsigned char)code[i + 1] << 8;
-        if (i + 2 < code.size()) v |= (unsigned char)code[i + 2];
-        enc += b64[(v >> 18) & 63];
-        enc += b64[(v >> 12) & 63];
-        if (i + 1 < code.size()) enc += b64[(v >> 6) & 63];
-        if (i + 2 < code.size()) enc += b64[v & 63];
-    }
-    std::wstring name = g_file.empty() ? L"programa.hez" : fs::path(g_file).filename().wstring();
-    std::string n8 = narrow(name), qn;
-    for (unsigned char c : n8) {
-        if (isalnum(c) || c == '.' || c == '-' || c == '_') qn += (char)c;
-        else { char h[4]; snprintf(h, sizeof h, "%%%02X", c); qn += h; }
-    }
-    std::wstring url = widen(std::string(HYPEREZ_WEB_URL) + "editor/index.html#c=" + enc + "&n=" + qn);
-    if (OpenClipboard(g_wnd)) {
-        EmptyClipboard();
-        HGLOBAL g = GlobalAlloc(GMEM_MOVEABLE, (url.size() + 1) * sizeof(wchar_t));
-        if (g) {
-            memcpy(GlobalLock(g), url.c_str(), (url.size() + 1) * sizeof(wchar_t));
-            GlobalUnlock(g);
-            if (!SetClipboardData(CF_UNICODETEXT, g)) GlobalFree(g);
-        }
-        CloseClipboard();
-    }
-    if (MessageBoxW(g_wnd, L"El enlace ya está copiado: quien lo abra verá este programa en el editor de HyperEZ del navegador y podrá "
-                           L"ejecutarlo sin instalar nada.\n\n¿Abrirlo ahora en el navegador?",
-                    L"Compartir en el editor web", MB_YESNO | MB_ICONINFORMATION) == IDYES)
-        ShellExecuteW(g_wnd, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-}
-
-// ---------------------------------------------------------------------------
-// Ir a la definición (F12 o Ctrl+clic): el servidor de lenguaje de VS Code y del navegador, aquí en memoria
-// ---------------------------------------------------------------------------
 
 std::string lspUri(const std::wstring& path) {
     std::string p = narrow(path);
@@ -2880,11 +2690,7 @@ void onCommand(int id) {
         case CMD_THEME: g_dark = !g_dark; setCheck(CMD_THEME, g_dark); applyTheme(); break;
         case CMD_DEFINITION: gotoDefinition(); break;
         case CMD_NEWPROJECT: newProject(); break;
-        case CMD_SHARE: shareToWeb(); break;
-        case CMD_HELP_WEB: ShellExecuteW(g_wnd, L"open", widen(HYPEREZ_WEB_URL).c_str(), nullptr, nullptr, SW_SHOWNORMAL); break;
-        case CMD_HELP_WEBEDITOR:
-            ShellExecuteW(g_wnd, L"open", widen(std::string(HYPEREZ_WEB_URL) + "editor/index.html").c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-            break;
+        case CMD_HELP_WEB: ShellExecuteW(g_wnd, L"open", widen(HYPEREZ_REPO_URL).c_str(), nullptr, nullptr, SW_SHOWNORMAL); break;
         case CMD_FONT: chooseFont(); break;
         case CMD_RUNPANEL: runInPanel(); break;
         case CMD_STOP: stopRun(); break;
@@ -2942,16 +2748,11 @@ void onCommand(int id) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Ventana principal
-// ---------------------------------------------------------------------------
-
 LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == g_findMsg && g_findMsg) { onFindMessage((FINDREPLACEW*)lp); return 0; }
     switch (msg) {
         case WM_CREATE: {
             g_wnd = h;
-            // Barra de herramientas clásica: iconos estándar de Windows y botones con texto para ejecutar
             g_toolbar = CreateWindowExW(0, TOOLBARCLASSNAMEW, nullptr,
                                         WS_CHILD | WS_VISIBLE | TBSTYLE_FLAT | TBSTYLE_TOOLTIPS | TBSTYLE_LIST | CCS_NODIVIDER | CCS_NOPARENTALIGN |
                                             CCS_NORESIZE,
@@ -2989,12 +2790,10 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             SendMessageW(g_toolbar, TB_ADDBUTTONSW, (WPARAM)std::size(buttons), (LPARAM)buttons);
             SendMessageW(g_toolbar, TB_AUTOSIZE, 0, 0);
             SendMessageW(g_toolbar, TB_ENABLEBUTTON, CMD_STOP, FALSE);
-            // Pestañas de documentos
             g_tabs = CreateWindowExW(0, WC_TABCONTROLW, L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | TCS_FOCUSNEVER, 0, 0, 10, 10, h,
                                      (HMENU)(INT_PTR)ID_TABS, g_inst, nullptr);
             SendMessageW(g_tabs, WM_SETFONT, (WPARAM)g_uiFont, TRUE);
             g_tabsProc = (WNDPROC)SetWindowLongPtrW(g_tabs, GWLP_WNDPROC, (LONG_PTR)tabsProc);
-            // Explorador: título y árbol de carpetas
             g_treeHeader = CreateWindowExW(0, L"STATIC", L"  EXPLORADOR", WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, 0, 0, 10, 10, h,
                                            (HMENU)(INT_PTR)ID_TREEHEADER, g_inst, nullptr);
             {
@@ -3005,13 +2804,13 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             }
             g_tree = CreateWindowExW(0, WC_TREEVIEWW, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | TVS_HASBUTTONS | TVS_LINESATROOT |
                                      TVS_SHOWSELALWAYS | TVS_EDITLABELS | TVS_TRACKSELECT, 0, 0, 10, 10, h, (HMENU)(INT_PTR)ID_TREE, g_inst, nullptr);
-            SetWindowTheme(g_tree, L"Explorer", nullptr); // el aspecto del Explorador de Windows
+            SetWindowTheme(g_tree, L"Explorer", nullptr);
             SendMessageW(g_tree, WM_SETFONT, (WPARAM)g_uiFont, TRUE);
             TreeView_SetExtendedStyle(g_tree, TVS_EX_DOUBLEBUFFER | TVS_EX_FADEINOUTEXPANDOS, TVS_EX_DOUBLEBUFFER | TVS_EX_FADEINOUTEXPANDOS);
             TreeView_SetIndent(g_tree, S(12));
             initTreeImages();
             explorerSetRoot(g_explorerRoot.empty() ? projectsDir() : g_explorerRoot);
-            if (g_dark) { // el árbol con los colores de HyperEZ Noche
+            if (g_dark) {
                 TreeView_SetBkColor(g_tree, C_PANEL_BG);
                 TreeView_SetTextColor(g_tree, C_PANEL_FG);
                 SetWindowTheme(g_tree, L"DarkMode_Explorer", nullptr);
@@ -3023,7 +2822,6 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             gc.lpszClassName = L"HzGutter";
             RegisterClassW(&gc);
             g_gutter = CreateWindowExW(0, L"HzGutter", L"", WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, h, (HMENU)(INT_PTR)ID_GUTTER, g_inst, nullptr);
-            // Panel inferior: Problemas | Salida
             g_bottomTabs = CreateWindowExW(0, WC_TABCONTROLW, L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | TCS_FOCUSNEVER, 0, 0, 10, 10, h,
                                            (HMENU)(INT_PTR)ID_BOTTOMTABS, g_inst, nullptr);
             SendMessageW(g_bottomTabs, WM_SETFONT, (WPARAM)g_uiFont, TRUE);
@@ -3046,7 +2844,6 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             g_panel = CreateWindowExW(WS_EX_CLIENTEDGE, L"LISTBOX", L"", WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
                                       0, 0, 10, 10, h, (HMENU)(INT_PTR)ID_PANEL, g_inst, nullptr);
             SendMessageW(g_panel, WM_SETFONT, (WPARAM)g_uiFont, TRUE);
-            // ventana emergente propia: así el editor no la tapa al repintarse
             g_complete = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, L"LISTBOX", L"",
                                          WS_POPUP | WS_BORDER | WS_VSCROLL | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT, 0, 0, 10, 10, h, nullptr, g_inst, nullptr);
             SendMessageW(g_complete, WM_SETFONT, (WPARAM)g_uiFont, TRUE);
@@ -3054,13 +2851,12 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             SendMessageW(g_status, WM_SETFONT, (WPARAM)g_uiFont, TRUE);
             DragAcceptFiles(h, TRUE);
             SetTimer(h, TIMER_GUTTER, 60, nullptr);
-            addTab(); // la primera pestaña
+            addTab();
             if (g_dark) applyTheme();
             return 0;
         }
         case WM_SIZE: layout(); return 0;
         case WM_SETFOCUS: SetFocus(g_edit); return 0;
-        // Separador entre el código y el panel de abajo: se arrastra para cambiar el alto del panel
         case WM_SETCURSOR:
             if ((HWND)wp == h && LOWORD(lp) == HTCLIENT) {
                 POINT pt;
@@ -3098,7 +2894,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 GetClientRect(h, &rc);
                 int statusH = 0;
                 if (g_status && g_showStatus) { RECT sr; GetWindowRect(g_status, &sr); statusH = sr.bottom - sr.top; }
-                int px = (int)rc.bottom - statusH - GET_Y_LPARAM(lp) - S(2); // el ratón queda en medio de la franja
+                int px = (int)rc.bottom - statusH - GET_Y_LPARAM(lp) - S(2);
                 g_panelHeight = std::clamp(MulDiv(px, 96, g_dpi), 60, 2000);
                 layout();
                 UpdateWindow(h);
@@ -3116,7 +2912,6 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             }
             if (g_splitDrag) {
                 g_splitDrag = false;
-                // si el separador se soltó más allá del límite, guardar el alto que se ve de verdad
                 if (g_splitBottom >= 0) {
                     RECT rc;
                     GetClientRect(h, &rc);
@@ -3138,7 +2933,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             int id = LOWORD(wp), code = HIWORD(wp);
             if ((HWND)lp == g_edit && code == EN_CHANGE) {
                 if (!g_formatting) {
-                    bool dirty = editorText() != g_savedText; // deshacer hasta lo guardado quita la marca
+                    bool dirty = editorText() != g_savedText;
                     if (dirty != g_dirty) { g_dirty = dirty; updateTitle(); }
                     SetTimer(h, TIMER_HIGHLIGHT, 150, nullptr);
                     SetTimer(h, TIMER_CHECK, 700, nullptr);
@@ -3168,7 +2963,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 if (treeNotify(n, r)) return r;
                 break;
             }
-            if (n->hwndFrom == g_toolbar && n->code == NM_CUSTOMDRAW && g_dark) { // textos claros sobre la barra oscura
+            if (n->hwndFrom == g_toolbar && n->code == NM_CUSTOMDRAW && g_dark) {
                 auto* cd = (NMTBCUSTOMDRAW*)lp;
                 if (cd->nmcd.dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
                 if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) {
@@ -3192,7 +2987,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_APP_DEFINITION: {
             CHARRANGE sel;
             SendMessageW(g_edit, EM_EXGETSEL, 0, (LPARAM)&sel);
-            if (sel.cpMin == sel.cpMax) gotoDefinition(); // solo un clic, sin arrastrar una selección
+            if (sel.cpMin == sel.cpMax) gotoDefinition();
             return 0;
         }
         case WM_APP_TREEREFRESH:
@@ -3200,7 +2995,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             else explorerRefresh();
             return 0;
         case WM_ACTIVATEAPP:
-            if (wp && g_tree && g_showExplorer) explorerRefresh(); // al volver a la ventana: los cambios hechos fuera
+            if (wp && g_tree && g_showExplorer) explorerRefresh();
             break;
         case WM_CTLCOLORSTATIC:
             if ((HWND)lp == g_treeHeader) {
@@ -3208,7 +3003,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 SetTextColor((HDC)wp, C_HEADER_FG);
                 return (LRESULT)g_brHeader;
             }
-            if ((HWND)lp == g_output) { // la salida, con los colores del editor aunque sea de solo lectura
+            if ((HWND)lp == g_output) {
                 SetBkColor((HDC)wp, C_PANEL_BG);
                 SetTextColor((HDC)wp, C_PANEL_FG);
                 return (LRESULT)g_brPanel;
@@ -3222,7 +3017,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             }
             break;
         case WM_ERASEBKGND:
-            if (g_dark) { // los huecos entre paneles (separadores), oscuros como el resto
+            if (g_dark) {
                 RECT rc;
                 GetClientRect(h, &rc);
                 FillRect((HDC)wp, &rc, g_brHeader);
@@ -3269,7 +3064,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(h, msg, wp, lp);
 }
 
-} // namespace
+}
 
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     g_inst = inst;
@@ -3318,11 +3113,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     bool opened = false;
     for (int i = 1; i < argc; i++)
         if (fs::exists(argv[i])) {
-            if (!opened) g_explorerFollowNext = true; // abierto desde Windows: el explorador enseña su carpeta
+            if (!opened) g_explorerFollowNext = true;
             openFile(argv[i]);
             opened = true;
         }
-    if (!opened) { // primera vez: un programa de bienvenida
+    if (!opened) {
         setText(kWelcome);
         LONG end = (LONG)editorText().size();
         CHARRANGE cr{end, end};

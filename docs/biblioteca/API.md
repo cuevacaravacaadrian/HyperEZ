@@ -1,4 +1,4 @@
-# Referencia de la API de HyperEZ 0.9.0
+# Referencia de la API de HyperEZ 1.0.0
 
 > Generada automáticamente con `hyper docs` a partir del catálogo de la máquina virtual.
 
@@ -75,6 +75,14 @@ Coseno.
 #### `cosh(x: number): number`
 
 Coseno hiperbólico.
+
+#### `createEvent(nombre: text, campos?: list): Event`
+
+Crea un evento nuevo en tiempo de ejecución. Dentro de una clase es más cómodo declarar 'event nombre(campos)'.
+
+```hz
+var golpe = createEvent("golpe", ["danio"])
+```
 
 #### `degrees(radianes: number): number`
 
@@ -308,6 +316,10 @@ Ejecuta una prueba con nombre. Muestra ✓ o ✗ sin detener el programa; 'hyper
 test("sumar", () => assertEqual(2 + 2, 4))
 ```
 
+#### `tick(): number`
+
+Igual que time(): segundos desde que empezó el programa, con decimales. Sirve para medir tiempos.
+
 #### `time(): number`
 
 Segundos transcurridos desde que empezó el programa (o el juego).
@@ -336,6 +348,14 @@ Tarea que se completa tras N segundos. Úsala con await dentro de funciones asyn
 await wait(1.5)
 ```
 
+#### `warn(...valores: any): void`
+
+Muestra un aviso en amarillo por la salida de errores (no detiene el programa).
+
+```hz
+warn("Quedan pocas vidas:", vidas)
+```
+
 #### `wrap(x: number, minimo: number, maximo: number): number`
 
 Da la vuelta: si x se sale por un lado, entra por el otro (útil para pantallas que se repiten).
@@ -351,6 +371,10 @@ Espera a que terminen todas las tareas y devuelve sus resultados en el mismo ord
 #### `async function awaitAny(tareas: list)`
 
 Devuelve el resultado de la primera tarea que termine.
+
+#### `async function delay(segundos: number, funcion: function, ...args)`
+
+Ejecuta la función pasados unos segundos, sin detener el resto del programa. Devuelve su tarea.
 
 ## Constantes
 

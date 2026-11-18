@@ -1,4 +1,3 @@
-// Módulos: from ... import, import ... as y miembros privados.
 from "./_inventario.hz" import Inventario, Objeto, VERSION
 import "./_inventario.hz" as inv
 

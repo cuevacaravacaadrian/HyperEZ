@@ -1,4 +1,3 @@
-// VM: memoria, registro de la API, compilación de módulos, eventos y tareas.
 #include "lang/vm/vm.h"
 #include "lang/sema/analyzer.h"
 #include "lang/compiler/codegen.h"
@@ -9,10 +8,6 @@
 #include <thread>
 
 namespace hz {
-
-// ---------------------------------------------------------------------------
-// Valores
-// ---------------------------------------------------------------------------
 
 size_t ValueHash::operator()(const Value& v) const {
     switch (v.t) {
@@ -47,7 +42,7 @@ bool valuesEqual(const Value& a, const Value& b, int depth) {
     if (a.o == b.o) return true;
     if (a.o->type != b.o->type || depth > 64) return false;
     switch (a.o->type) {
-        case OT::String: return false; // internados
+        case OT::String: return false;
         case OT::List: {
             auto& x = static_cast<ObjList*>(a.o)->items;
             auto& y = static_cast<ObjList*>(b.o)->items;
@@ -98,10 +93,6 @@ SrcLoc ObjFunction::locAt(size_t offset) const {
     return l;
 }
 
-// ---------------------------------------------------------------------------
-// Construcción
-// ---------------------------------------------------------------------------
-
 VM::VM() {
     gcEnabled = false;
     s_constructor = intern("constructor");
@@ -130,7 +121,7 @@ void VM::registerCore() {
     taskClass = mk("Task"); eventClass = mk("Event"); subscriptionClass = mk("Subscription"); enumClass = mk("Enum");
     moduleClass = mk("Module"); enumValueClass = mk("EnumValue");
     errorClass = mk("Error");
-    errorClass->isNative = false; // se puede heredar de Error
+    errorClass->isNative = false;
     for (const char* f : {"message", "name", "stack", "file", "line", "column", "cause"}) {
         errorClass->fieldIndex[intern(f)] = (int)errorClass->fieldNames.size();
         errorClass->fieldNames.push_back(intern(f));
@@ -146,21 +137,13 @@ void VM::registerCore() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Memoria
-// ---------------------------------------------------------------------------
-
 std::atomic<bool> g_interrupt{false};
 
-// ---------------------------------------------------------------------------
-// Asignador de objetos pequeños: una lista libre por cada múltiplo de 16 bytes hasta 256.
-// La memoria se reserva en bloques de 64 KB y se reutiliza (no se devuelve al sistema).
-// ---------------------------------------------------------------------------
 namespace {
 constexpr size_t kGranule = 16, kMaxSmall = 256, kChunk = 64 * 1024;
 struct FreeNode { FreeNode* next; };
 FreeNode* g_free[kMaxSmall / kGranule + 1] = {};
-} // namespace
+}
 
 void* Obj::operator new(size_t n) {
     if (n > kMaxSmall) return ::operator new(n);
@@ -188,11 +171,6 @@ void Obj::operator delete(void* p, size_t n) {
     g_free[c] = node;
 }
 
-// Hash de los textos internados. Los cortos se recorren enteros; los largos (más de 256 bytes) no:
-// se mezclan la longitud, los 64 primeros y 64 últimos bytes y unas 64 muestras repartidas por el
-// medio (la misma idea que Lua). Así concatenar a un texto que crece no cuesta O(n) en el hash, solo
-// en la copia. Si dos textos largos distintos coinciden en todo lo muestreado, la tabla los distingue
-// igualmente comparándolos enteros.
 static inline size_t textHash(std::string_view s) {
     if (s.size() <= 256) return std::hash<std::string_view>()(s);
     uint64_t h = 0xcbf29ce484222325ull ^ (uint64_t)s.size();
@@ -270,7 +248,6 @@ Value VM::makeError(const std::string& msg, const std::string& kind) {
     ObjList* st = newList();
     e->fields[2] = Value::object(st);
     for (auto& s : stackTrace()) st->items.push_back(str(s));
-    // archivo y línea del marco superior
     if (fiber && !fiber->frames.empty()) {
         auto& fr = fiber->frames.back();
         ObjFunction* fn = fr.closure->fn;
@@ -401,7 +378,6 @@ void VM::blacken(Obj* o) {
 }
 
 void VM::collectGarbage() {
-    // Raíces
     for (auto& v : builtins) markValue(v);
     for (auto& [k, v] : libraries) markValue(v);
     for (auto& u : units) { markObject(u->module); markObject(u->script); }
@@ -446,21 +422,23 @@ void VM::sweep() {
             delete o;
         }
     }
-    // pendingTasks: quitar las terminadas
     pendingTasks.erase(std::remove_if(pendingTasks.begin(), pendingTasks.end(), [](ObjTask* t) { return t->state != TaskState::Pending; }), pendingTasks.end());
     bytesAllocated = live * 64;
     nextGC = std::max<size_t>(8 * 1024 * 1024, bytesAllocated * 2);
 }
-
-// ---------------------------------------------------------------------------
-// Salida
-// ---------------------------------------------------------------------------
 
 void VM::print(std::string_view s) {
     if (printHook) { printHook(s); return; }
     if (!outputToStdout) return;
     output.append(s.data(), s.size());
     if (output.size() > 1 << 16) flushOutput();
+}
+
+void VM::warn(const std::string& s) {
+    if (printHook) { printHook(s + "\n"); return; }
+    flushOutput();
+    std::fprintf(stderr, "%s%s%s\n", color::yellow(), s.c_str(), color::reset());
+    std::fflush(stderr);
 }
 
 void VM::flushOutput() {
@@ -471,10 +449,6 @@ void VM::flushOutput() {
     }
     std::fflush(stdout);
 }
-
-// ---------------------------------------------------------------------------
-// Texto de valores
-// ---------------------------------------------------------------------------
 
 ObjClass* VM::classOf(const Value& v) {
     switch (v.t) {
@@ -597,7 +571,7 @@ std::string VM::toString(const Value& v, bool quote, int depth) {
             auto* inst = static_cast<ObjInstance*>(v.o);
             auto it = inst->cls->methods.find(s_toString);
             if (it != inst->cls->methods.end() && !isObjType(it->second, OT::Native)) {
-                Value r = callBound(it->second, v, 0, nullptr); // los errores se propagan al llamador
+                Value r = callBound(it->second, v, 0, nullptr);
                 return isString(r) ? asString(r)->str : toString(r, quote, depth + 1);
             }
             if (inst->cls->isSubclassOf(errorClass) && isString(inst->fields[0]))
@@ -635,7 +609,6 @@ std::string VM::toString(const Value& v, bool quote, int depth) {
 
 bool VM::isInstanceOf(const Value& v, std::string_view n) {
     if (!n.empty() && n.back() == '?') { if (v.isNull()) return true; n.remove_suffix(1); }
-    // los tipos más habituales primero (se comprueba en cada llamada a funciones con parámetros tipados)
     if (n == "number") return v.isNum();
     if (n == "text") return isString(v);
     if (n == "any" || n == "object") return !v.isNull();
@@ -661,10 +634,6 @@ bool VM::isInstanceOf(const Value& v, std::string_view n) {
     }
     return false;
 }
-
-// ---------------------------------------------------------------------------
-// Registro de API
-// ---------------------------------------------------------------------------
 
 std::string ApiEntry::signature() const {
     std::string s = "(";
@@ -819,7 +788,6 @@ void VM::defineGlobal(const std::string& name, Value v, const std::string& type,
 
 ObjClass* VM::nativeClass(const std::string& name, const std::string& doc, NativeFn ctor, const std::string& ctorSig) {
     ObjClass* c = nullptr;
-    // reutilizar las clases internas ya creadas (text, list, Error...)
     for (auto* k : {textClass, listClass, mapClass, setClass, numberClass, boolClass, functionClass, rangeClass, taskClass,
                     eventClass, subscriptionClass, errorClass, eventDataClass, enumClass, moduleClass, enumValueClass})
         if (k && k->name->str == name) c = k;
@@ -920,11 +888,6 @@ std::vector<std::string> VM::libraryNames() const {
     return r;
 }
 
-// ---------------------------------------------------------------------------
-// Compilación de módulos
-// ---------------------------------------------------------------------------
-
-// Bibliotecas escritas en HyperEZ e incrustadas en el ejecutable (src/lib, generado por cmake/embed_hz.cmake)
 const std::map<std::string, const char*>& embeddedLibraries();
 static const char* kLibPrefix = "hz:lib/";
 
@@ -962,6 +925,16 @@ ModuleUnit* VM::compileFile(const std::string& path) {
     return compileSource(abs, src, true);
 }
 
+bool isLpoScript(const std::string& path) {
+    for (const char* kind : {".server.", ".client.", ".module."}) {
+        size_t k = path.rfind(kind);
+        if (k == std::string::npos) continue;
+        std::string ext = path.substr(k + std::strlen(kind));
+        if (ext == "hz" || ext == "hez") return true;
+    }
+    return false;
+}
+
 ModuleUnit* VM::compileSource(const std::string& path, const std::string& source, bool isEntry, bool doCodegen) {
     auto owned = std::make_unique<ModuleUnit>();
     ModuleUnit* unit = owned.get();
@@ -974,21 +947,23 @@ ModuleUnit* VM::compileSource(const std::string& path, const std::string& source
     bool savedGC = gcEnabled;
     gcEnabled = false;
     unit->program = parseSource(path, source, unit->diags);
+    if (unit->program && isLpoScript(path) && pathStem(path) != "lpo") {
+        auto imp = std::make_unique<ImportStmt>(SrcLoc{});
+        imp->path = "lpo";
+        imp->importAll = true;
+        unit->program->body.insert(unit->program->body.begin(), std::move(imp));
+    }
     Analyzer an(*this, *unit);
     an.run();
     unit->analyzing = false;
     unit->analyzed = true;
     if (unit->repl) {
-        // Consola: el código de entradas anteriores ya se ejecutó. Si una redefinición lo deja con errores
-        // (p. ej. usa una variable que ahora se declara más abajo) no importa: no se vuelve a generar.
         auto& items = unit->diags.items;
         int start = unit->repl->start;
         items.erase(std::remove_if(items.begin(), items.end(), [&](const Diagnostic& d) { return d.loc.line > 0 && d.loc.offset < start; }),
                     items.end());
     }
     if (isEntry) entryUnit = unit;
-    // Módulo en tiempo de ejecución
-    // En la consola interactiva todas las entradas comparten el módulo (los globales conservan su valor).
     auto* mod = unit->repl && unit->repl->module ? unit->repl->module : alloc<ObjModule>();
     mod->name = intern(unit->name);
     mod->path = path;
@@ -1074,6 +1049,8 @@ ModuleUnit* VM::resolveImport(const std::string& path, bool isFile, const std::s
             candidates.push_back(base + ".hz");
             candidates.push_back(pathJoin(base, "main.hez"));
             candidates.push_back(pathJoin(base, "main.hz"));
+            candidates.push_back(base + ".module.hez");
+            candidates.push_back(base + ".module.hz");
         }
     };
     if (isFile) {
@@ -1083,7 +1060,7 @@ ModuleUnit* VM::resolveImport(const std::string& path, bool isFile, const std::s
         std::string rel = path;
         for (auto& c : rel) if (c == '.') c = '/';
         addExt(pathJoin(fromDir, rel));
-        // Las carpetas de un proyecto HyperEZ: hypercode (los módulos del programa) y hyperlibs (bibliotecas de otros)
+        if (isLpoScript(fromFile)) addExt(pathJoin(pathDir(fromDir), rel));
         std::string home = projectHome();
         addExt(pathJoin(pathJoin(home, "hypercode"), rel));
         addExt(pathJoin(pathJoin(home, "hyperlibs"), rel));
@@ -1101,7 +1078,6 @@ ModuleUnit* VM::resolveImport(const std::string& path, bool isFile, const std::s
         std::string tmp;
         if (fileExists(abs) || (readSource && readSource(abs, tmp))) { found = abs; break; }
     }
-    // Bibliotecas incluidas con HyperEZ (import ai, import stats...): solo si no hay un archivo propio con ese nombre
     if (found.empty() && !isFile && embeddedLibraries().count(path)) found = kLibPrefix + path + ".hz";
     if (found.empty()) {
         error = "No se encontró el módulo '" + path + "'";
@@ -1151,9 +1127,8 @@ bool VM::loadPrelude() {
         printDiagnostics(u, stderr);
         return false;
     }
-    // Exportar los nombres del preludio como integrados
     World& w = worldOf(*this);
-    std::vector<std::pair<int, int>> copy; // global del preludio -> integrado
+    std::vector<std::pair<int, int>> copy;
     for (auto& [name, idx] : u->globalIndex) {
         Symbol* s = u->globalSyms[name];
         if (!s || s->vis == Visibility::Private || name.rfind("__", 0) == 0) continue;
@@ -1165,10 +1140,8 @@ bool VM::loadPrelude() {
     }
     for (auto& c : u->classes) w.preludeClasses[c->name] = c.get();
     for (auto& e : u->enums) w.preludeEnums[e->name] = e.get();
-    // Ejecutar
     if (!runModule(u)) return false;
     for (auto& [g, b] : copy) builtins[b] = u->module->globals[g];
-    // los globales internos (__) también son accesibles para el motor por nombre
     return true;
 }
 
@@ -1185,10 +1158,6 @@ Value VM::findFunction(ModuleUnit* unit, const std::string& name) {
     if (isObjType(v, OT::Closure) || isObjType(v, OT::Native)) return v;
     return Value();
 }
-
-// ---------------------------------------------------------------------------
-// Errores
-// ---------------------------------------------------------------------------
 
 void VM::raise(const std::string& msg) { throw NativeError{msg}; }
 
@@ -1254,10 +1223,6 @@ void VM::reportError(const Value& err, FILE* out) {
     std::fflush(out);
 }
 
-// ---------------------------------------------------------------------------
-// Eventos
-// ---------------------------------------------------------------------------
-
 ObjSubscription* VM::subscribe(ObjEvent* ev, Value handler, bool once, double priority) {
     auto* s = alloc<ObjSubscription>();
     s->event = ev;
@@ -1265,7 +1230,6 @@ ObjSubscription* VM::subscribe(ObjEvent* ev, Value handler, bool once, double pr
     s->once = once;
     s->priority = priority;
     s->order = ++subscriptionCounter;
-    // Insertar ordenado por prioridad (mayor primero) y luego por orden de registro
     auto pos = std::find_if(ev->subs.begin(), ev->subs.end(), [&](ObjSubscription* o) { return o->priority < priority; });
     ev->subs.insert(pos, s);
     return s;
@@ -1295,7 +1259,6 @@ void VM::emitEvent(ObjEvent* ev, int argc, const Value* args, Value target) {
     tempRoots.push_back(payload);
     auto* p = static_cast<ObjInstance*>(payload.o);
     ev->dispatching++;
-    // Copia: los manejadores pueden suscribir/cancelar durante el despacho
     std::vector<ObjSubscription*> subs = ev->subs;
     for (auto* s : subs) {
         if (!s->active) continue;
@@ -1305,8 +1268,8 @@ void VM::emitEvent(ObjEvent* ev, int argc, const Value* args, Value target) {
             std::fprintf(stderr, "%s[evento %s]%s un manejador falló; el resto de manejadores continúa:\n", color::yellow(), ev->name->str.c_str(), color::reset());
             reportError(lastError);
         }
-        if (isObjType(r, OT::Task)) { /* manejador async: sigue en segundo plano */ }
-        if (p->fields[3].isBool() && p->fields[3].b) break; // stopPropagation()
+        if (isObjType(r, OT::Task)) {  }
+        if (p->fields[3].isBool() && p->fields[3].b) break;
     }
     ev->dispatching--;
     if (ev->dispatching == 0 && ev->needsCleanup) {
@@ -1315,10 +1278,6 @@ void VM::emitEvent(ObjEvent* ev, int argc, const Value* args, Value target) {
     }
     tempRoots.pop_back();
 }
-
-// ---------------------------------------------------------------------------
-// Tareas y planificador
-// ---------------------------------------------------------------------------
 
 double VM::currentTime() { return clock ? clock() : nowSeconds(); }
 
@@ -1373,11 +1332,9 @@ void VM::cancelAllTasks() {
 
 void VM::pumpScheduler() {
     double now = currentTime();
-    // nextFrame()
     std::vector<ObjTask*> frameTasks;
     frameTasks.swap(nextFrameTasks);
     for (auto* t : frameTasks) completeTask(t, Value());
-    // temporizadores vencidos
     if (!timers.empty()) {
         std::vector<ObjTask*> due;
         timers.erase(std::remove_if(timers.begin(), timers.end(), [&](ObjTask* t) {
@@ -1418,4 +1375,4 @@ bool VM::drainScheduler() {
     return !(mainFiber && mainFiber->state == FiberState::Failed);
 }
 
-} // namespace hz
+}

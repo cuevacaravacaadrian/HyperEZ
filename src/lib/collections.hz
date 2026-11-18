@@ -1,17 +1,3 @@
-// collections — estructuras de datos: pila, cola, cola doble, cola de prioridad, contador,
-// caché LRU y grafos (recorridos, camino más corto, orden topológico).
-//
-//   import collections
-//   var tareas = collections.PriorityQueue()
-//   tareas.push("normal", 5)
-//   tareas.push("urgente", 1)
-//   print(tareas.pop())                        // urgente (la prioridad más baja sale antes)
-//
-//   var mapa = collections.Graph()
-//   mapa.addEdge("Madrid", "Toledo", 70)
-//   mapa.addEdge("Toledo", "Ciudad Real", 120)
-//   print(mapa.shortestPath("Madrid", "Ciudad Real"))   // {path: [Madrid, Toledo, Ciudad Real], distance: 190}
-
 /// Pila: el último que entra es el primero que sale (deshacer, recorridos en profundidad...).
 class Stack {
     var items: list = []
@@ -49,7 +35,6 @@ class Queue {
         var v = items[head]
         items[head] = null
         head += 1
-        // de vez en cuando se recoloca para no gastar memoria
         if head > 64 and head * 2 > items.length {
             items = items.skip(head)
             head = 0
@@ -93,8 +78,8 @@ class Deque {
 /// Cola de prioridad (montículo binario): pop() devuelve siempre el de menor prioridad.
 /// Para sacar primero el mayor usa PriorityQueue(true).
 class PriorityQueue {
-    var heap: list = []      // pares [prioridad, orden, valor]
-    var counter: number = 0  // a igual prioridad, sale antes el que entró antes
+    var heap: list = []
+    var counter: number = 0
     var maxFirst: bool = false
 
     constructor(mayorPrimero: bool = false) { maxFirst = mayorPrimero }
@@ -213,7 +198,7 @@ class LRUCache {
 
 /// Grafo con nodos (cualquier valor) y aristas con peso. Dirigido o no dirigido.
 class Graph {
-    var adj: map = {}         // nodo -> {vecino: peso}
+    var adj: map = {}
     var directed: bool = false
 
     constructor(dirigido: bool = false) { directed = dirigido }

@@ -1,6 +1,3 @@
-# Prueba del desensamblador (ctest "bytecode"): todo el código del repositorio se compila y cada
-# instrucción se decodifica (el listado no puede contener "??").
-#   cmake -DHYPER=<hyper> -DRAIZ=<repo> -P check_bytecode.cmake
 file(GLOB_RECURSE archivos "${RAIZ}/examples/*.hz" "${RAIZ}/tests/lang/*.hz" "${RAIZ}/tests/lib/*.hz" "${RAIZ}/tests/juegos/*.hz"
      "${RAIZ}/src/lib/*.hz")
 set(n 0)

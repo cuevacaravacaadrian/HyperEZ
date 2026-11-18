@@ -1,9 +1,3 @@
-// Serpiente — come manzanas sin chocar con las paredes ni contigo misma.
-// Controles: flechas o WASD para girar, P para pausar, Esc para salir.
-//
-// Si no hay una consola interactiva (por ejemplo dentro de 'hyper test'),
-// la serpiente juega sola con un piloto automático y una semilla fija.
-
 const ANCHO = 26
 const ALTO = 14
 const DEMO = not Console.interactive

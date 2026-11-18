@@ -1,0 +1,65 @@
+fn doble(x: number): number { return x * 2 }
+
+async fn esperarYSumar(a: number, b: number): number {
+    await wait(0)
+    return a + b
+}
+
+class Contador {
+    var n = 0
+    fn sumar(k: number) { n += k }
+    static fn crear(): Contador { return Contador() }
+}
+
+fn clasificar(n: number): text {
+    if n < 0 {
+        return "negativo"
+    } elif n == 0 {
+        return "cero"
+    } elif n < 10 {
+        return "pequeño"
+    } else {
+        return "grande"
+    }
+}
+
+test("fn como forma corta de function", () => {
+    assertEqual(doble(21), 42)
+    var c = Contador.crear()
+    c.sumar(3)
+    c.sumar(4)
+    assertEqual(c.n, 7)
+    var fn = x => x + 1
+    assertEqual(fn(1), 2)
+})
+
+test("elif", () => {
+    assertEqual(clasificar(-3), "negativo")
+    assertEqual(clasificar(0), "cero")
+    assertEqual(clasificar(5), "pequeño")
+    assertEqual(clasificar(50), "grande")
+    var elif = 3
+    elif += 1
+    assertEqual(elif, 4)
+})
+
+test("loop", () => {
+    var i = 0
+    loop {
+        i++
+        if i == 5 { break }
+    }
+    assertEqual(i, 5)
+    var loop = "nombre libre"
+    assertEqual(loop, "nombre libre")
+})
+
+test("tick, warn y delay", async () => {
+    var t0 = tick()
+    assert(t0 >= 0)
+    assert(tick() >= t0)
+    var resultado = await delay(0, (a, b) => a * b, 6, 7)
+    assertEqual(resultado, 42)
+    assertEqual(await esperarYSumar(2, 3), 5)
+    assertEqual(typeof(warn), "function")
+})

@@ -1,21 +1,3 @@
-// site — páginas web completas a partir de archivos Markdown: blogs, documentación, portfolios...
-// Sin escribir HTML: cada .md es una página, con menú, estilo y diseño adaptable al móvil.
-//
-//   import site
-//   site.build("contenido", "web", { title: "Mi web" })   // contenido/*.md → web/*.html
-//   // y para verla mientras la escribes:  hyper serve web
-//
-// Cada página puede empezar con datos entre líneas ---:
-//   ---
-//   titulo: Sobre mí
-//   orden: 2
-//   ---
-//   # Sobre mí
-//   Texto en **Markdown**...
-//
-// Las imágenes y demás archivos de la carpeta se copian tal cual. Los enlaces a otras páginas
-// (otra.md) pasan a ser otra.html. index.md es la página de inicio.
-
 import markdown
 import template
 
@@ -124,7 +106,7 @@ function build(origen: text, destino: text, opciones: map = {}): list {
             otros.add(r)
         }
     }
-    paginas = paginas.sortBy(p => str(round(p.orden + 1000000, 3)).padStart(14, "0") + p.titulo) // por orden y luego por título
+    paginas = paginas.sortBy(p => str(round(p.orden + 1000000, 3)).padStart(14, "0") + p.titulo)
     var hechos = []
     File.makeDir(destino)
     foreach p in paginas {
@@ -134,7 +116,7 @@ function build(origen: text, destino: text, opciones: map = {}): list {
             : paginas.filter(q => not q.data.get("oculta", false)).map(q => ({ url: raiz + q.salida, titulo: q.titulo, actual: q.salida == p.salida }))
         var cuerpo = fixLinks(markdown.toHtml(p.body, { highlight: opciones.get("highlight", true) }))
         if opciones.has("index") {
-            var indice = opciones.index.substring(0, opciones.index.length - 3) + ".html" // enlaces a README.md → index.html
+            var indice = opciones.index.substring(0, opciones.index.length - 3) + ".html"
             cuerpo = cuerpo.replace("href=\"" + indice, "href=\"index.html").replace("/" + indice + "\"", "/index.html\"")
         }
         var html = template.renderHtml(plantilla, {

@@ -1,4 +1,3 @@
-# Compila HyperEZ y ejecuta todas las pruebas en Windows, Linux y macOS en cada push y pull request.
 name: CI
 
 on:

@@ -1,5 +1,3 @@
-// Ampliaciones de la biblioteca estándar: pruebas, utilidades para juegos,
-// archivos, sistema, consola y métodos extra de listas, textos y mapas.
 #include "lang/stdlib/native.h"
 #include "lang/stdlib/mathtypes.h"
 
@@ -34,11 +32,6 @@ static ObjList* L(Value* args) { return static_cast<ObjList*>(args[-1].o); }
 static ObjMap* M(Value* args) { return static_cast<ObjMap*>(args[-1].o); }
 static const std::string& S(Value* args) { return asString(args[-1])->str; }
 
-
-// Mantiene vivos (para el GC) los objetos creados mientras se llama a código del script.
-
-// Llama a una función del script pasándole solo los argumentos que declara:
-// m.mapValues(v => v * 2) y m.mapValues((v, k) => ...) funcionan las dos.
 static Value callFlexible(VM& vm, Value fn, int argc, Value* args) {
     Value target = isObjType(fn, OT::Bound) ? static_cast<ObjBound*>(fn.o)->method : fn;
     int n = argc;
@@ -58,10 +51,6 @@ static bool lessForSort(VM& vm, const Value& a, const Value& b, const char* fnam
     vm.raise(std::string(fname) + ": solo se pueden comparar números o textos, no " + vm.typeName(a) + " y " + vm.typeName(b));
 }
 
-// ---------------------------------------------------------------------------
-// Pruebas
-// ---------------------------------------------------------------------------
-
 NATIVE(n_test) {
     std::string name = argStr(vm, args, argc, 0, "test");
     Value body = args[1];
@@ -70,7 +59,6 @@ NATIVE(n_test) {
     Value r;
     bool ok = vm.tryCall(body, 0, nullptr, &r);
     if (ok && isObjType(r, OT::Task)) {
-        // prueba async: se espera a que termine
         auto* t = static_cast<ObjTask*>(r.o);
         vm.tempRoots.push_back(r);
         while (t->state == TaskState::Pending && vm.hasPendingTasks()) vm.pumpScheduler();
@@ -109,10 +97,6 @@ NATIVE(n_assertThrows) {
     return vm.lastError;
 }
 
-// ---------------------------------------------------------------------------
-// Utilidades numéricas para juegos
-// ---------------------------------------------------------------------------
-
 NATIVE(n_remap) {
     double x = argNum(vm, args, argc, 0, "remap"), a1 = argNum(vm, args, argc, 1, "remap"), b1 = argNum(vm, args, argc, 2, "remap");
     double a2 = argNum(vm, args, argc, 3, "remap"), b2 = argNum(vm, args, argc, 4, "remap");
@@ -147,10 +131,6 @@ NATIVE(n_distance) {
     return Value(std::hypot(x2 - x1, y2 - y1));
 }
 NATIVE(n_isNaN) { UNUSED; return Value::boolean(args[0].isNum() && std::isnan(args[0].n)); }
-
-// ---------------------------------------------------------------------------
-// File
-// ---------------------------------------------------------------------------
 
 std::string resolvePath(VM& vm, const std::string& p) {
     fs::path path((const char8_t*)p.c_str());
@@ -220,10 +200,6 @@ NATIVE(file_list) {
     for (auto& n : names) l->items.push_back(vm.str(n));
     return Value::object(l);
 }
-
-// ---------------------------------------------------------------------------
-// System
-// ---------------------------------------------------------------------------
 
 NATIVE(sys_args) {
     UNUSED;
@@ -298,11 +274,6 @@ NATIVE(sys_sleep) {
     return Value();
 }
 
-// ---------------------------------------------------------------------------
-// Console (juegos de texto)
-// ---------------------------------------------------------------------------
-
-// Secuencias de escape solo si la salida es una terminal (no al redirigir a un archivo o en pruebas).
 static bool ansiEnabled() {
     static int cached = -1;
     if (cached < 0) {
@@ -322,7 +293,7 @@ static bool ansiEnabled() {
 
 static std::string ansiColor(VM& vm, Value c, bool background) {
     if (c.isNull() || c.isUndef()) return "";
-    if (!ansiEnabled()) { toColor(vm, c, "Console"); return ""; } // valida el color igualmente
+    if (!ansiEnabled()) { toColor(vm, c, "Console"); return ""; }
     RGBA rgba = toColor(vm, c, "Console");
     char buf[48];
     std::snprintf(buf, sizeof buf, "\x1b[%d;2;%d;%d;%dm", background ? 48 : 38, (int)std::lround(rgba.r * 255), (int)std::lround(rgba.g * 255), (int)std::lround(rgba.b * 255));
@@ -382,7 +353,6 @@ NATIVE(con_height) {
     return Value(25);
 }
 
-// Nombre legible de una tecla leída de la consola.
 static std::string keyFromCode(uint32_t c, bool extended) {
     if (extended) {
         switch (c) {
@@ -423,14 +393,12 @@ static Value readKeyImpl(VM& vm) {
     return vm.str(keyFromCode((uint32_t)c, false));
 }
 #else
-// Lee un byte de la entrada esperando como mucho timeoutMs (-1: sin límite). -1 si no hay.
 static int rawByte(int timeoutMs) {
     pollfd p{STDIN_FILENO, POLLIN, 0};
     if (poll(&p, 1, timeoutMs) <= 0) return -1;
     unsigned char c;
     return read(STDIN_FILENO, &c, 1) == 1 ? c : -1;
 }
-// Terminal en modo "una tecla cada vez" mientras exista el objeto.
 struct RawTerminal {
     termios old{};
     bool ok = false;
@@ -468,7 +436,7 @@ static Value readKeyPosix(VM& vm, bool wait) {
                 case 'R': r = "f3"; break;
                 case 'S': r = "f4"; break;
                 default:
-                    if (c3 >= '1' && c3 <= '6') { // ESC [ n ~
+                    if (c3 >= '1' && c3 <= '6') {
                         int c4 = rawByte(30);
                         static const char* names[] = {"", "home", "insert", "delete", "end", "pageup", "pagedown"};
                         r = c4 == '~' ? names[c3 - '0'] : "?";
@@ -479,7 +447,7 @@ static Value readKeyPosix(VM& vm, bool wait) {
         } else {
             r = "escape";
         }
-    } else if (c >= 0xC0) { // carácter UTF-8 de varios bytes (ñ, á...)
+    } else if (c >= 0xC0) {
         std::string bytes(1, (char)c);
         int extra = c >= 0xF0 ? 3 : c >= 0xE0 ? 2 : 1;
         for (int i = 0; i < extra; i++) { int x = rawByte(30); if (x >= 0) bytes += (char)x; }
@@ -526,10 +494,6 @@ NATIVE(con_pollKey) {
     return readKeyPosix(vm, false);
 #endif
 }
-
-// ---------------------------------------------------------------------------
-// Métodos extra de list
-// ---------------------------------------------------------------------------
 
 NATIVE(l_zip) {
     ObjList* other = argList(vm, args, argc, 0, "zip");
@@ -670,10 +634,6 @@ NATIVE(l_fill) {
     return args[-1];
 }
 
-// ---------------------------------------------------------------------------
-// Métodos extra de text
-// ---------------------------------------------------------------------------
-
 NATIVE(t_capitalize) {
     UNUSED;
     const std::string& s = S(args);
@@ -682,7 +642,6 @@ NATIVE(t_capitalize) {
     uint32_t cp = utf8Decode(s, i);
     std::string first;
     utf8Append(first, cp);
-    // reutiliza upper() del propio tipo text
     Value fv = vm.str(first);
     Value up = vm.callMethod(fv, "upper", 0, nullptr);
     return vm.str(asString(up)->str + s.substr(i));
@@ -723,7 +682,6 @@ NATIVE(t_center) {
     return vm.str(out);
 }
 NATIVE(t_format) {
-    // "{} tiene {} puntos".format("Ana", 10)  ·  "{0} y {0}".format("x")
     const std::string& s = S(args);
     std::string out;
     int next = 0;
@@ -744,10 +702,6 @@ NATIVE(t_format) {
     }
     return vm.str(out);
 }
-
-// ---------------------------------------------------------------------------
-// Métodos extra de map
-// ---------------------------------------------------------------------------
 
 NATIVE(m_filter) {
     Value fn = args[0];
@@ -779,12 +733,7 @@ NATIVE(m_keyOf) {
     return Value();
 }
 
-// ---------------------------------------------------------------------------
-// Registro
-// ---------------------------------------------------------------------------
-
 void registerStdlibExtra(VM& vm) {
-    // Pruebas
     vm.defineGlobalFn("test", "(nombre: text, cuerpo: function): bool",
                       "Ejecuta una prueba con nombre. Muestra ✓ o ✗ sin detener el programa; 'hyper test' falla si alguna prueba falla.", n_test,
                       "test(\"sumar\", () => assertEqual(2 + 2, 4))");
@@ -792,7 +741,6 @@ void registerStdlibExtra(VM& vm) {
                       "Lanza un error si los valores no son iguales (los números se comparan con una pequeña tolerancia).", n_assertEqual);
     vm.defineGlobalFn("assertThrows", "(funcion: function, mensaje?: text): Error",
                       "Comprueba que la función lanza un error y lo devuelve.", n_assertThrows);
-    // Utilidades numéricas
     vm.defineGlobalFn("remap", "(x: number, desdeMin: number, desdeMax: number, hastaMin: number, hastaMax: number): number",
                       "Convierte x de un intervalo a otro (p. ej. de 0..100 a 0..1).", n_remap);
     vm.defineGlobalFn("wrap", "(x: number, minimo: number, maximo: number): number",
@@ -804,7 +752,6 @@ void registerStdlibExtra(VM& vm) {
     vm.defineGlobalFn("distance", "(x1: number, y1: number, x2: number, y2: number): number", "Distancia entre dos puntos.", n_distance);
     vm.defineGlobalFn("isNaN", "(x: any): bool", "true si x no es un número válido (NaN).", n_isNaN);
 
-    // File
     ObjModule* file = vm.nativeModule("File", "Leer y escribir archivos. Las rutas relativas parten de la carpeta del programa.");
     vm.defineFn(file, "read", "(ruta: text): text", "Contenido completo de un archivo de texto.", file_read, "var datos = File.read(\"nivel1.txt\")");
     vm.defineFn(file, "readLines", "(ruta: text): list<text>", "Líneas de un archivo de texto.", file_readLines);
@@ -816,7 +763,6 @@ void registerStdlibExtra(VM& vm) {
     vm.defineFn(file, "makeDir", "(ruta: text): bool", "Crea una carpeta (y las intermedias).", file_makeDir);
     vm.defineFn(file, "list", "(carpeta?: text = \".\"): list<text>", "Nombres de los archivos y carpetas que contiene una carpeta.", file_list);
 
-    // System
     ObjModule* sys = vm.nativeModule("System", "Información del sistema y del programa.");
     vm.defineProp(sys, "args", "list<text>", "Argumentos pasados al programa: hyper juego.hz uno dos", sys_args);
     vm.defineProp(sys, "platform", "text", "\"windows\", \"linux\" o \"macos\".", sys_platform);
@@ -828,7 +774,6 @@ void registerStdlibExtra(VM& vm) {
     vm.defineFn(sys, "date", "(): map", "Fecha y hora actuales: {year, month, day, hour, minute, second, weekday, text}.", sys_date);
     vm.defineFn(sys, "sleep", "(segundos: number): void", "Detiene el programa unos segundos (bloquea; dentro de async usa await wait()).", sys_sleep);
 
-    // Console
     ObjModule* con = vm.nativeModule("Console", "Control de la consola para juegos de texto: colores, cursor y teclas sin pulsar Intro.");
     vm.defineFn(con, "clear", "(): void", "Borra la pantalla de la consola.", con_clear);
     vm.defineFn(con, "write", "(texto: any, color?: Color, fondo?: Color): void", "Escribe sin salto de línea, opcionalmente en color.", con_write,
@@ -846,7 +791,6 @@ void registerStdlibExtra(VM& vm) {
     vm.defineProp(con, "width", "number", "Columnas visibles de la consola.", con_width);
     vm.defineProp(con, "height", "number", "Filas visibles de la consola.", con_height);
 
-    // list
     ObjClass* l = vm.listClass;
     vm.defineMethod(l, "zip", "(otra: list): list", "Pares [a, b] con los elementos de ambas listas.", l_zip);
     vm.defineMethod(l, "flat", "(profundidad?: number = 1): list", "Aplana listas anidadas.", l_flat);
@@ -862,7 +806,6 @@ void registerStdlibExtra(VM& vm) {
     vm.defineMethod(l, "swap", "(i: number, j: number): list", "Intercambia dos elementos (en el sitio).", l_swap);
     vm.defineMethod(l, "fill", "(valor: any): list", "Pone el mismo valor en todas las posiciones (en el sitio).", l_fill);
 
-    // text
     ObjClass* t = vm.textClass;
     vm.defineMethod(t, "capitalize", "(): text", "Primera letra en mayúscula.", t_capitalize);
     vm.defineMethod(t, "words", "(): list<text>", "Palabras separadas por espacios.", t_words);
@@ -870,13 +813,11 @@ void registerStdlibExtra(VM& vm) {
     vm.defineMethod(t, "center", "(ancho: number, relleno?: text = \" \"): text", "Centra el texto en 'ancho' caracteres.", t_center);
     vm.defineMethod(t, "format", "(...valores: any): text", "Sustituye {} (o {0}, {1}...) por los valores: \"{} tiene {} puntos\".format(nombre, 10)", t_format);
 
-    // map
     ObjClass* m = vm.mapClass;
     vm.defineMethod(m, "filter", "(f: function): map", "Nuevo mapa con las entradas para las que f(clave, valor) es verdadero.", m_filter);
     vm.defineMethod(m, "mapValues", "(f: function): map", "Nuevo mapa con f(valor, clave) como valores.", m_mapValues);
     vm.defineMethod(m, "keyOf", "(valor: any): any", "Primera clave que tiene ese valor (o null).", m_keyOf);
 
-    // Áreas de la biblioteca en sus propios archivos
     registerSystemLibs(vm);
     registerBinaryLibs(vm);
     registerRegex(vm);
@@ -887,4 +828,4 @@ void registerStdlibExtra(VM& vm) {
     registerMore(vm);
 }
 
-} // namespace hz
+}

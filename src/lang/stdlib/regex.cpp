@@ -1,4 +1,3 @@
-// Expresiones regulares (sintaxis de JavaScript/ECMAScript): buscar, validar, reemplazar y dividir texto.
 #include "lang/stdlib/native.h"
 
 #include <algorithm>
@@ -16,10 +15,8 @@ struct RegexData {
 static void freeRegex(void* p) { delete static_cast<RegexData*>(p); }
 static RegexData& R(Value* args) { return *static_cast<RegexData*>(static_cast<ObjForeign*>(args[-1].o)->ptr); }
 
-// Las posiciones se cuentan en caracteres (como en los textos de HyperEZ), no en bytes.
 static double charIndex(const std::string& s, size_t byte) { return (double)utf8Length(std::string_view(s).substr(0, byte)); }
 
-// base: posición en bytes desde la que se buscó (las de std::smatch son relativas a ella)
 static Value matchToMap(VM& vm, const std::string& text, const std::smatch& m, size_t base = 0) {
     ObjMap* r = vm.newMap();
     TempRoot keep(vm, r);
@@ -92,7 +89,6 @@ NATIVE(re_replace) {
         return vm.str(std::regex_replace(t, re, asString(with)->str, all ? std::regex_constants::format_default
                                                                       : std::regex_constants::format_first_only));
     }
-    // reemplazo con una función: recibe {text, start, end, groups} y devuelve el texto nuevo
     std::string out;
     size_t last = 0;
     for (auto it = std::sregex_iterator(t.begin(), t.end(), re); it != std::sregex_iterator(); ++it) {
@@ -128,7 +124,6 @@ NATIVE(re_escape) {
     return vm.str(r);
 }
 
-// Atajos en los textos: "a1b2".matches(r"\w+"), "x=1".replaceAll(r"\d", "#")
 NATIVE(t_matches) {
     const std::string& s = asString(args[-1])->str;
     std::string p = argStr(vm, args, argc, 0, "text.matches");
@@ -163,4 +158,4 @@ void registerRegex(VM& vm) {
                     "Reemplaza todas las coincidencias de una expresión regular ($1, $2... son los grupos).", t_replaceRegex);
 }
 
-} // namespace hz
+}

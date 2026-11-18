@@ -1,7 +1,3 @@
-# Incrusta código HyperEZ en hyper.exe: el preludio y las bibliotecas de src/lib.
-#   cmake -DOUT=<archivo.cpp> -DPRELUDE=<prelude.hz> -DLIBDIR=<src/lib> -P embed_hz.cmake
-# Cada biblioteca src/lib/<ruta>.hz se importa como `import <ruta con puntos>` (p. ej. src/lib/ai.hz -> import ai).
-
 function(hz_literal var file)
   file(READ "${file}" text)
   string(FIND "${text}" ")HZEMBED\"" bad)
@@ -29,7 +25,6 @@ foreach(lib ${libs})
 endforeach()
 string(APPEND code "    };\n    return libs;\n}\n\n} // namespace hz\n")
 
-# Solo se reescribe si cambia (evita recompilar)
 if(EXISTS "${OUT}")
   file(READ "${OUT}" old)
   if(old STREQUAL code)

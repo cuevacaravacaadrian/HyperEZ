@@ -1,17 +1,9 @@
-"""Genera el soporte de HyperEZ para otros editores a partir de la gramática de VS Code:
-
-    editors/sublime/HyperEZ.tmLanguage          Sublime Text, TextMate y los editores que leen gramáticas TextMate
-    editors/notepad++/HyperEZ.xml              Notepad++ (Lenguaje → Definir tu idioma → Importar)
-    editors/vim/syntax/hyperez.vim + ftdetect  Vim y Neovim
-    editors/highlightjs/hyperez.js             highlight.js (colorear código HyperEZ en páginas web)
-    (el kit para GitHub Linguist, en editors/linguist/, lo genera tools/linguist_kit.py)
-
-    python tools/gen_editors.py           (después de cambiar la gramática con editors/vscode/tools/gen_grammar.py)
-"""
+import importlib.util
 import json
 import os
 import plistlib
 import sys
+from xml.sax.saxutils import escape
 
 for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
@@ -20,16 +12,30 @@ for _s in (sys.stdout, sys.stderr):
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GRAMMAR = os.path.join(ROOT, "editors", "vscode", "syntaxes", "hyperez.tmLanguage.json")
 
-KEYWORDS = ["var", "let", "const", "function", "return", "if", "else", "for", "foreach", "in", "while", "repeat", "break",
-            "continue", "class", "struct", "constructor", "this", "super", "extends", "implements", "interface", "enum",
-            "import", "from", "as", "public", "private", "protected", "static", "new", "try", "catch", "finally", "throw",
-            "async", "await", "match", "event", "on", "once", "emit", "step", "get", "set", "and", "or", "not", "is"]
-CONSTANTS = ["true", "false", "null"]
-TYPES = ["number", "int", "text", "bool", "list", "map", "set", "any", "void", "function", "Task", "Range", "Event"]
-BUILTINS = ["print", "println", "write", "input", "len", "typeof", "str", "toNumber", "toInt", "assert", "assertEqual", "assertThrows",
-            "test", "exit", "range", "time", "wait", "spawn", "abs", "sqrt", "pow", "floor", "ceil", "round", "min", "max", "clamp",
-            "random", "randomInt", "randomChoice", "randomSeed", "Console", "File", "System", "JSON", "Path", "Time", "Process",
-            "Http", "Regex", "Bytes", "Hash", "Matrix", "Image", "Vec2", "Vec3", "Color", "Error"]
+
+def _load_grammar_module():
+    path = os.path.join(ROOT, "editors", "vscode", "tools", "gen_grammar.py")
+    spec = importlib.util.spec_from_file_location("gen_grammar", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_G = _load_grammar_module()
+
+CONTROL = ["if", "else", "elif", "match", "for", "foreach", "in", "while", "repeat", "loop", "do", "break", "continue",
+           "return", "await", "throw", "try", "catch", "finally", "step"]
+DECLARATIONS = ["var", "let", "const", "function", "fn", "class", "struct", "interface", "enum", "event", "constructor",
+                "import", "from", "as", "extends", "implements"]
+MODIFIERS = ["public", "private", "protected", "static", "async", "get", "set"]
+OPERATOR_WORDS = ["and", "or", "not", "is", "new", "on", "once", "emit", "priority"]
+KEYWORDS = CONTROL + DECLARATIONS + MODIFIERS + OPERATOR_WORDS
+CONSTANTS = ["true", "false", "null", "this", "super"]
+TYPES = _G.PRIM.split("|")
+BUILTIN_FUNCTIONS = _G.BUILTIN_FN.split("|")
+BUILTIN_CLASSES = _G.BUILTIN_CLS.split("|")
+BUILTINS = BUILTIN_FUNCTIONS + BUILTIN_CLASSES
+EXTENSIONS = ["hez", "hz"]
 
 
 def write(rel, text):
@@ -49,11 +55,28 @@ def sublime():
 
 
 def notepadpp():
-    kw = " ".join(KEYWORDS)
+    styles = [
+        ("DEFAULT", "1F2328", 0), ("COMMENTS", "008000", 2), ("LINE COMMENTS", "008000", 2), ("NUMBERS", "098658", 0),
+        ("KEYWORDS1", "0000DC", 1), ("KEYWORDS2", "0000DC", 0), ("KEYWORDS3", "267F99", 0), ("KEYWORDS4", "795E26", 0),
+        ("KEYWORDS5", "AF00DB", 1), ("KEYWORDS6", "000000", 0), ("KEYWORDS7", "000000", 0), ("KEYWORDS8", "000000", 0),
+        ("OPERATORS", "1F2328", 0), ("FOLDER IN CODE1", "1F2328", 0), ("FOLDER IN CODE2", "000000", 0),
+        ("FOLDER IN COMMENT", "000000", 0), ("DELIMITERS1", "A31515", 0), ("DELIMITERS2", "A31515", 0),
+        ("DELIMITERS3", "000000", 0), ("DELIMITERS4", "000000", 0), ("DELIMITERS5", "000000", 0),
+        ("DELIMITERS6", "000000", 0), ("DELIMITERS7", "000000", 0), ("DELIMITERS8", "000000", 0),
+    ]
+    style_xml = "\n".join(
+        f'            <WordsStyle name="{n}" fgColor="{c}" bgColor="FFFFFF" fontStyle="{f}" nesting="0" />' for n, c, f in styles)
+    lists = {
+        "Keywords1": " ".join(DECLARATIONS + MODIFIERS + OPERATOR_WORDS),
+        "Keywords2": " ".join(CONSTANTS),
+        "Keywords3": " ".join(TYPES),
+        "Keywords4": " ".join(BUILTINS),
+        "Keywords5": " ".join(CONTROL),
+    }
+    kw_xml = "\n".join(f'            <Keywords name="Keywords{i}">{escape(lists.get(f"Keywords{i}", ""))}</Keywords>' for i in range(1, 9))
     xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
-<!-- HyperEZ para Notepad++: Lenguaje → Definir tu idioma… → Importar… y elige este archivo. Generado por tools/gen_editors.py -->
 <NotepadPlus>
-    <UserLang name="HyperEZ" ext="hez hz" udlVersion="2.1">
+    <UserLang name="HyperEZ" ext="{" ".join(EXTENSIONS)}" udlVersion="2.1">
         <Settings>
             <Global caseIgnored="no" allowFoldOfComments="yes" foldCompact="no" forcePureLC="0" decimalSeparator="0" />
             <Prefix Keywords1="no" Keywords2="no" Keywords3="no" Keywords4="no" Keywords5="no" Keywords6="no" Keywords7="no" Keywords8="no" />
@@ -78,41 +101,11 @@ def notepadpp():
             <Keywords name="Folders in comment, open"></Keywords>
             <Keywords name="Folders in comment, middle"></Keywords>
             <Keywords name="Folders in comment, close"></Keywords>
-            <Keywords name="Keywords1">{kw}</Keywords>
-            <Keywords name="Keywords2">{" ".join(CONSTANTS)}</Keywords>
-            <Keywords name="Keywords3">{" ".join(TYPES)}</Keywords>
-            <Keywords name="Keywords4">{" ".join(BUILTINS)}</Keywords>
-            <Keywords name="Keywords5"></Keywords>
-            <Keywords name="Keywords6"></Keywords>
-            <Keywords name="Keywords7"></Keywords>
-            <Keywords name="Keywords8"></Keywords>
+{kw_xml}
             <Keywords name="Delimiters">00&quot; 01\\ 02&quot; 03&apos; 04\\ 05&apos; 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23</Keywords>
         </KeywordLists>
         <Styles>
-            <WordsStyle name="DEFAULT" fgColor="1F2328" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="COMMENTS" fgColor="008000" bgColor="FFFFFF" fontStyle="2" nesting="0" />
-            <WordsStyle name="LINE COMMENTS" fgColor="008000" bgColor="FFFFFF" fontStyle="2" nesting="0" />
-            <WordsStyle name="NUMBERS" fgColor="098658" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS1" fgColor="0000DC" bgColor="FFFFFF" fontStyle="1" nesting="0" />
-            <WordsStyle name="KEYWORDS2" fgColor="0000DC" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS3" fgColor="267F99" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS4" fgColor="795E26" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS5" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS6" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS7" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS8" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="OPERATORS" fgColor="1F2328" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="FOLDER IN CODE1" fgColor="1F2328" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="FOLDER IN CODE2" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="FOLDER IN COMMENT" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS1" fgColor="A31515" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS2" fgColor="A31515" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS3" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS4" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS5" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS6" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS7" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS8" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+{style_xml}
         </Styles>
     </UserLang>
 </NotepadPlus>
@@ -121,16 +114,19 @@ def notepadpp():
 
 
 def vim():
-    syn = f'''" Vim: colores de HyperEZ (.hez y .hz). Copia syntax/ y ftdetect/ en ~/.vim (o ~/.config/nvim). Generado por tools/gen_editors.py
-if exists("b:current_syntax")
+    syn = f'''if exists("b:current_syntax")
   finish
 endif
 
-syn keyword hzKeyword {" ".join(KEYWORDS)}
+syn keyword hzConditional if else elif match
+syn keyword hzRepeat for foreach in while repeat loop do break continue step
+syn keyword hzStatement return await throw
+syn keyword hzException try catch finally
+syn keyword hzKeyword {" ".join(DECLARATIONS + MODIFIERS + OPERATOR_WORDS)}
 syn keyword hzConstant {" ".join(CONSTANTS)}
 syn keyword hzType {" ".join(TYPES)}
 syn keyword hzBuiltin {" ".join(BUILTINS)}
-syn match hzNumber "\\<\\(0[xX][0-9a-fA-F_]\\+\\|0[bB][01_]\\+\\|[0-9][0-9_]*\\(\\.[0-9_]\\+\\)\\=\\([eE][+-]\\=[0-9]\\+\\)\\=\\)\\>"
+syn match hzNumber "\\<\\(0[xX][0-9a-fA-F_]\\+\\|0[bB][01_]\\+\\|0[oO][0-7_]\\+\\|[0-9][0-9_]*\\(\\.[0-9_]\\+\\)\\=\\([eE][+-]\\=[0-9]\\+\\)\\=\\)\\>"
 syn match hzClassName "\\<[A-Z][A-Za-z0-9_]*\\>"
 syn region hzInterp matchgroup=hzInterpDelim start="${{" end="}}" contained contains=TOP
 syn region hzString start=+"+ skip=+\\\\.+ end=+"+ contains=hzInterp,hzEscape
@@ -145,6 +141,10 @@ syn region hzComment start="/\\*" end="\\*/" contains=hzTodo
 syn keyword hzTodo TODO FIXME PENDIENTE contained
 syn match hzOperator "|>\\|=>\\|->\\|\\.\\.=\\|\\.\\.\\|??\\|?\\."
 
+hi def link hzConditional Conditional
+hi def link hzRepeat Repeat
+hi def link hzStatement Statement
+hi def link hzException Exception
 hi def link hzKeyword Keyword
 hi def link hzConstant Constant
 hi def link hzType Type
@@ -162,19 +162,208 @@ hi def link hzOperator Operator
 
 let b:current_syntax = "hyperez"
 '''
-    det = 'au BufRead,BufNewFile *.hez,*.hz setfiletype hyperez\n'
-    return [write("editors/vim/syntax/hyperez.vim", syn), write("editors/vim/ftdetect/hyperez.vim", det)]
+    det = "au BufRead,BufNewFile *.hez,*.hz setfiletype hyperez\n"
+    ftp = """if exists("b:did_ftplugin")
+  finish
+endif
+let b:did_ftplugin = 1
+setlocal commentstring=//\\ %s
+setlocal comments=s1:/*,mb:*,ex:*/,:///,://
+setlocal expandtab shiftwidth=4 softtabstop=4 tabstop=4
+setlocal suffixesadd=.hez,.hz
+setlocal makeprg=hyper\\ check\\ %
+setlocal errorformat=%f:%l:%c:\\ %m
+let b:undo_ftplugin = "setlocal commentstring< comments< expandtab< shiftwidth< softtabstop< tabstop< suffixesadd< makeprg< errorformat<"
+"""
+    return [write("editors/vim/syntax/hyperez.vim", syn), write("editors/vim/ftdetect/hyperez.vim", det),
+            write("editors/vim/ftplugin/hyperez.vim", ftp)]
+
+
+def nano():
+    def words(ws):
+        return "\\<(" + "|".join(ws) + ")\\>"
+    rc = f'''syntax hyperez "\\.(hez|hz)$"
+header "^#!.*hyper"
+comment "//"
+color brightblue "{words(CONTROL)}"
+color blue "{words(DECLARATIONS + MODIFIERS + OPERATOR_WORDS)}"
+color cyan "{words(TYPES)}"
+color brightyellow "{words(BUILTINS)}"
+color magenta "{words(CONSTANTS)}"
+color green "\\<(0[xX][0-9A-Fa-f_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*(\\.[0-9_]+)?([eE][+-]?[0-9]+)?)\\>"
+color red ""([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*'"
+color brightred "\\$\\{{[^}}]*\\}}"
+color brightblack "//.*"
+color brightblack start="/\\*" end="\\*/"
+color ,green "[[:space:]]+$"
+'''
+    return write("editors/nano/hyperez.nanorc", rc)
+
+
+def gtksourceview():
+    def kw(ctx, style, ws):
+        items = "\n".join(f"      <keyword>{w}</keyword>" for w in ws)
+        return f'''    <context id="{ctx}" style-ref="{style}">
+{items}
+    </context>'''
+    lang = f'''<?xml version="1.0" encoding="UTF-8"?>
+<language id="hyperez" name="HyperEZ" version="2.0" _section="Source">
+  <metadata>
+    <property name="mimetypes">text/x-hyperez</property>
+    <property name="globs">{";".join("*." + e for e in EXTENSIONS)}</property>
+    <property name="line-comment-start">//</property>
+    <property name="block-comment-start">/*</property>
+    <property name="block-comment-end">*/</property>
+  </metadata>
+  <styles>
+    <style id="comment" name="Comment" map-to="def:comment"/>
+    <style id="doc-comment" name="Documentation comment" map-to="def:doc-comment"/>
+    <style id="string" name="String" map-to="def:string"/>
+    <style id="escape" name="Escape" map-to="def:special-char"/>
+    <style id="interpolation" name="Interpolation" map-to="def:special-constant"/>
+    <style id="number" name="Number" map-to="def:number"/>
+    <style id="keyword" name="Keyword" map-to="def:keyword"/>
+    <style id="control" name="Control" map-to="def:statement"/>
+    <style id="constant" name="Constant" map-to="def:special-constant"/>
+    <style id="type" name="Type" map-to="def:type"/>
+    <style id="builtin" name="Builtin" map-to="def:builtin"/>
+  </styles>
+  <definitions>
+    <context id="escape" style-ref="escape">
+      <match>\\\\(u\\{{[0-9A-Fa-f]+\\}}|u[0-9A-Fa-f]{{4}}|.)</match>
+    </context>
+    <context id="interpolation" style-ref="interpolation">
+      <start>\\$\\{{</start>
+      <end>\\}}</end>
+    </context>
+    <context id="string-double" style-ref="string" end-at-line-end="true">
+      <start>"</start>
+      <end>"</end>
+      <include>
+        <context ref="escape"/>
+        <context ref="interpolation"/>
+      </include>
+    </context>
+    <context id="string-single" style-ref="string" end-at-line-end="true">
+      <start>'</start>
+      <end>'</end>
+      <include>
+        <context ref="escape"/>
+        <context ref="interpolation"/>
+      </include>
+    </context>
+    <context id="number" style-ref="number">
+      <match extended="true">\\b(0[xX][0-9A-Fa-f_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*(\\.[0-9_]+)?([eE][+-]?[0-9]+)?)\\b</match>
+    </context>
+{kw("control", "control", CONTROL)}
+{kw("keywords", "keyword", DECLARATIONS + MODIFIERS + OPERATOR_WORDS)}
+{kw("constants", "constant", CONSTANTS)}
+{kw("types", "type", TYPES)}
+{kw("builtins", "builtin", BUILTINS)}
+    <context id="hyperez" class="no-spell-check">
+      <include>
+        <context id="doc-comment" style-ref="doc-comment" end-at-line-end="true">
+          <start>///</start>
+        </context>
+        <context ref="def:c-like-comment" style-ref="comment"/>
+        <context ref="def:c-like-comment-multiline" style-ref="comment"/>
+        <context ref="string-double"/>
+        <context ref="string-single"/>
+        <context ref="number"/>
+        <context ref="control"/>
+        <context ref="keywords"/>
+        <context ref="constants"/>
+        <context ref="types"/>
+        <context ref="builtins"/>
+      </include>
+    </context>
+  </definitions>
+</language>
+'''
+    return write("editors/gtksourceview/hyperez.lang", lang)
+
+
+def kate():
+    def items(name, ws):
+        body = "\n".join(f"        <item>{w}</item>" for w in ws)
+        return f'''      <list name="{name}">
+{body}
+      </list>'''
+    xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE language>
+<language name="HyperEZ" section="Sources" version="2" kateversion="5.0" extensions="{";".join("*." + e for e in EXTENSIONS)}" mimetype="text/x-hyperez" indenter="cstyle" license="MIT">
+  <highlighting>
+{items("control", CONTROL)}
+{items("keywords", DECLARATIONS + MODIFIERS + OPERATOR_WORDS)}
+{items("constants", CONSTANTS)}
+{items("types", TYPES)}
+{items("builtins", BUILTINS)}
+    <contexts>
+      <context name="Normal" attribute="Normal Text" lineEndContext="#stay">
+        <DetectSpaces/>
+        <keyword attribute="Control Flow" context="#stay" String="control"/>
+        <keyword attribute="Keyword" context="#stay" String="keywords"/>
+        <keyword attribute="Constant" context="#stay" String="constants"/>
+        <keyword attribute="Data Type" context="#stay" String="types"/>
+        <keyword attribute="Built-in" context="#stay" String="builtins"/>
+        <RegExpr attribute="Number" context="#stay" String="\\b(0[xX][0-9A-Fa-f_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*(\\.[0-9_]+)?([eE][+-]?[0-9]+)?)\\b"/>
+        <StringDetect attribute="Doc Comment" context="LineComment" String="///"/>
+        <Detect2Chars attribute="Comment" context="LineComment" char="/" char1="/"/>
+        <Detect2Chars attribute="Comment" context="BlockComment" char="/" char1="*" beginRegion="Comment"/>
+        <DetectChar attribute="String" context="StringDouble" char="&quot;"/>
+        <DetectChar attribute="String" context="StringSingle" char="'"/>
+        <DetectChar attribute="Symbol" context="#stay" char="{{" beginRegion="Brace"/>
+        <DetectChar attribute="Symbol" context="#stay" char="}}" endRegion="Brace"/>
+        <AnyChar attribute="Symbol" context="#stay" String=":!%&amp;()+,-/.*&lt;=&gt;?[]|~^;"/>
+      </context>
+      <context name="LineComment" attribute="Comment" lineEndContext="#pop"/>
+      <context name="BlockComment" attribute="Comment" lineEndContext="#stay">
+        <Detect2Chars attribute="Comment" context="#pop" char="*" char1="/" endRegion="Comment"/>
+      </context>
+      <context name="StringDouble" attribute="String" lineEndContext="#pop">
+        <RegExpr attribute="Escape" context="#stay" String="\\\\."/>
+        <Detect2Chars attribute="Interpolation" context="Interpolation" char="$" char1="{{"/>
+        <DetectChar attribute="String" context="#pop" char="&quot;"/>
+      </context>
+      <context name="StringSingle" attribute="String" lineEndContext="#pop">
+        <RegExpr attribute="Escape" context="#stay" String="\\\\."/>
+        <Detect2Chars attribute="Interpolation" context="Interpolation" char="$" char1="{{"/>
+        <DetectChar attribute="String" context="#pop" char="'"/>
+      </context>
+      <context name="Interpolation" attribute="Interpolation" lineEndContext="#pop">
+        <DetectChar attribute="Interpolation" context="#pop" char="}}"/>
+      </context>
+    </contexts>
+    <itemDatas>
+      <itemData name="Normal Text" defStyleNum="dsNormal"/>
+      <itemData name="Control Flow" defStyleNum="dsControlFlow"/>
+      <itemData name="Keyword" defStyleNum="dsKeyword"/>
+      <itemData name="Constant" defStyleNum="dsConstant"/>
+      <itemData name="Data Type" defStyleNum="dsDataType"/>
+      <itemData name="Built-in" defStyleNum="dsBuiltIn"/>
+      <itemData name="Number" defStyleNum="dsDecVal"/>
+      <itemData name="String" defStyleNum="dsString"/>
+      <itemData name="Escape" defStyleNum="dsSpecialChar"/>
+      <itemData name="Interpolation" defStyleNum="dsSpecialString"/>
+      <itemData name="Comment" defStyleNum="dsComment"/>
+      <itemData name="Doc Comment" defStyleNum="dsDocumentation"/>
+      <itemData name="Symbol" defStyleNum="dsOperator"/>
+    </itemDatas>
+  </highlighting>
+  <general>
+    <comments>
+      <comment name="singleLine" start="//"/>
+      <comment name="multiLine" start="/*" end="*/" region="Comment"/>
+    </comments>
+    <keywords casesensitive="1"/>
+  </general>
+</language>
+'''
+    return write("editors/kate/hyperez.xml", xml)
 
 
 def highlightjs():
-    js = """/*
- * HyperEZ para highlight.js (https://highlightjs.org): colorea código HyperEZ en páginas web.
- *   <script src="highlight.min.js"></script>
- *   <script src="hyperez.js"></script>
- *   <script>hljs.highlightAll()</script>      ...  <pre><code class="language-hz">print("hola")</code></pre>
- * Generado por tools/gen_editors.py
- */
-(function () {
+    js = """(function () {
   function hyperez(hljs) {
     const INTERP = { className: 'subst', begin: /\\$\\{/, end: /\\}/, keywords: {} };
     const STRING = {
@@ -203,7 +392,7 @@ def highlightjs():
         hljs.C_LINE_COMMENT_MODE,
         hljs.C_BLOCK_COMMENT_MODE,
         STRING,
-        { className: 'number', begin: /\\b(0[xX][0-9a-fA-F_]+|0[bB][01_]+|\\d[\\d_]*(\\.\\d[\\d_]*)?([eE][+-]?\\d+)?)\\b/ },
+        { className: 'number', begin: /\\b(0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\\d[\\d_]*(\\.\\d[\\d_]*)?([eE][+-]?\\d+)?)\\b/ },
         { className: 'title.class', begin: /\\b[A-Z][A-Za-z0-9_]*\\b/ },
         { className: 'title.function', begin: /\\b[a-z_][A-Za-z0-9_]*(?=\\s*\\()/ },
         { className: 'operator', begin: /\\|>|=>|->|\\.\\.=?|\\?\\?|\\?\\./ }
@@ -222,7 +411,7 @@ def highlightjs():
 
 
 def main():
-    hechos = [sublime(), notepadpp(), *vim(), highlightjs()]
+    hechos = [sublime(), notepadpp(), *vim(), nano(), gtksourceview(), kate(), highlightjs()]
     for h in hechos:
         print("  " + h)
 

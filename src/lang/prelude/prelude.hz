@@ -1,6 +1,3 @@
-// Preludio de HyperEZ: parte de la biblioteca estándar escrita en el propio lenguaje.
-// Se compila al arrancar la VM y sus nombres públicos están disponibles en todos los archivos.
-
 /// Espera a que terminen todas las tareas y devuelve sus resultados en el mismo orden.
 async function awaitAll(tareas: list): list {
     var resultados = []
@@ -8,6 +5,12 @@ async function awaitAll(tareas: list): list {
         resultados.add(await t)
     }
     return resultados
+}
+
+/// Ejecuta la función pasados unos segundos, sin detener el resto del programa. Devuelve su tarea.
+async function delay(segundos: number, funcion: function, ...args: any): any {
+    await wait(segundos)
+    return funcion(...args)
 }
 
 /// Devuelve el resultado de la primera tarea que termine.

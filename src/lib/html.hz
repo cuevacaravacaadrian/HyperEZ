@@ -1,9 +1,3 @@
-// html — generar páginas HTML sin errores de escape.
-//
-//   import html
-//   var cuerpo = html.tag("h1", {}, "Puntuaciones") + html.table([["Jugador", "Puntos"], ["Ana", 120]])
-//   File.write("puntos.html", html.page("Puntuaciones", cuerpo))
-
 /// Escapa un texto para meterlo en HTML (&, <, >, comillas).
 function escape(valor: any): text {
     return str(valor ?? "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")

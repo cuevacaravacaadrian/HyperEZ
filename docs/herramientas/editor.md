@@ -2,14 +2,14 @@
 
 Un editor de código sencillo y clásico, con fondo blanco, que se instala con HyperEZ en Windows como complemento del lenguaje. Es la forma más rápida de empezar: lo abres, escribes y pulsas **F5**.
 
-Tiene lo que se espera de un editor de los de siempre: **barra de herramientas** con los iconos de Windows, un **Explorador** con las carpetas del proyecto, **pestañas** para tener varios programas abiertos, **panel de salida** para ver el resultado sin salir del editor, **imprimir**, elegir la **fuente** y el indicador **INS/SOB** (insertar o sobrescribir). También está en el navegador, sin instalar nada: el [editor web](editor-web.md).
+Tiene lo que se espera de un editor de los de siempre: **barra de herramientas** con los iconos de Windows, un **Explorador** con las carpetas del proyecto, **pestañas** para tener varios programas abiertos, **panel de salida** para ver el resultado sin salir del editor, **imprimir**, elegir la **fuente** y el indicador **INS/SOB** (insertar o sobrescribir).
 
 ![HyperEZ Editor con un juego de tres en raya abierto](../img/editor.png)
 
 ## Abrirlo
 
 - Al terminar la instalación se abre solo (casilla *Abrir HyperEZ Editor al terminar*).
-- Menú Inicio → **HyperEZ Editor**, o el acceso directo del escritorio.
+- Menú Inicio → **HyperEZ Editor** (si marcaste el complemento al instalar).
 - Clic derecho en un archivo `.hez` o `.hz` → **Editar con HyperEZ Editor** (o *Abrir con → HyperEZ Editor*).
 - Clic derecho en una carpeta → *Nuevo → Programa HyperEZ* crea un `.hez` vacío.
 - Desde VS Code: *HyperEZ: Abrir en HyperEZ Editor*.
@@ -26,8 +26,7 @@ Los programas nuevos se guardan como **`.hez`** en `Documentos\HyperEZ` (puedes 
 | **Explorador (Ctrl+Mayús+E)** | a la izquierda, las carpetas y archivos del proyecto, con el icono de HyperEZ en los `.hez`. Un clic abre un archivo o una carpeta; clic derecho para **nuevo archivo, nueva carpeta, renombrar (F2), eliminar (Supr, a la papelera)**, mostrarlo en el Explorador de Windows o copiar su ruta. *Archivo → Abrir carpeta en el Explorador* elige otra carpeta; la franja de su derecha se arrastra para cambiar el ancho. |
 | **Iconos de HyperEZ** | cada carpeta de un proyecto con su icono (`hypersettings`, `hypercode`, `hypertests`, `hyperlibs`, `hypertools`, `hyperdata`...) y los archivos `.hez`, `.md`, `.json`, imágenes y datos con el suyo. Al abrir un archivo de un proyecto, el Explorador muestra el proyecto entero (la carpeta con `hypersettings/`) y su nombre. Ver [Proyectos y carpetas](proyectos.md). |
 | **Nuevo proyecto (Ctrl+Mayús+N)** | *Archivo → Nuevo proyecto*: juego, aplicación, inteligencia artificial, herramienta, web o sitio; se crea en `Documentos\HyperEZ` con las carpetas de HyperEZ y se abre. |
-| **Tema oscuro** | *Ver → Tema oscuro (HyperEZ Noche)*: los colores del tema de VS Code y del editor del navegador, con la barra de título oscura. Al imprimir se usan siempre los colores claros. |
-| **Compartir en el editor web** | *Archivo → Compartir en el editor web* copia un enlace con el programa: quien lo abra lo ve y lo ejecuta en el [editor del navegador](editor-web.md), sin instalar nada. |
+| **Tema oscuro** | *Ver → Tema oscuro (HyperEZ Noche)*: los colores del tema de VS Code, con la barra de título oscura. Al imprimir se usan siempre los colores claros. |
 | **Cerrar parejas** | al escribir `(`, `[`, `{`, `"` o `'` aparece también el cierre, con el cursor en medio; si escribes el cierre, se salta el que ya estaba. Con texto seleccionado, lo rodea. Retroceso entre una pareja vacía borra las dos, e Intro entre `{}` deja el cierre en su línea. |
 | **Ejecutar en el panel (Mayús+F5)** | también sin guardar; el resultado sale abajo, en la pestaña *Salida*, con el tiempo que tardó y si terminó bien. Doble clic en una línea con `archivo.hez:12` lleva a esa línea. **■** (o Ctrl+Pausa) detiene el programa. Sin teclado: para juegos e `input()` usa F5. |
 | **Pestañas** | cada archivo en su pestaña (Ctrl+N nueva, Ctrl+W cerrar, Ctrl+Tab cambiar; el botón central del ratón cierra). Abrir un archivo que ya está abierto va a su pestaña. Al salir pregunta por cada una con cambios. |
@@ -35,7 +34,7 @@ Los programas nuevos se guardan como **`.hez`** en `Documentos\HyperEZ` (puedes 
 | **Consola interactiva (F6)** | abre `hyper repl` en la carpeta del archivo. |
 | **Comprobar (F7)** | busca errores sin ejecutar. |
 | **Autocompletado (Ctrl+Espacio)** | palabras clave, todas las funciones, módulos y clases, y los nombres de tu archivo. Tras `Console.` o `Time.` muestra sus funciones; la firma aparece en la barra de estado. |
-| **Ir a la definición (F12 o Ctrl+clic)** | salta a donde se define una variable, función o clase, también en otro archivo del proyecto (lo abre en su pestaña). Usa el mismo servidor de lenguaje que VS Code y el editor del navegador. |
+| **Ir a la definición (F12 o Ctrl+clic)** | salta a donde se define una variable, función o clase, también en otro archivo del proyecto (lo abre en su pestaña). Usa el mismo servidor de lenguaje que VS Code. |
 | **Firmas** | al escribir `(` tras una función, la barra de estado enseña sus parámetros. |
 | **Sangría automática** | Intro mantiene la sangría y añade un nivel tras `{`, `[` o `(`; al escribir `}` se quita un nivel. Tab y Mayús+Tab sangran varias líneas. |
 | **Formatear (Ctrl+Mayús+F)** | ordena la sangría y los espacios como `hyper fmt`. Se deshace con Ctrl+Z. |

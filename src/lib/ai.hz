@@ -1,14 +1,3 @@
-// ai — inteligencia artificial con HyperEZ.
-//
-//   import ai
-//   var red = ai.NeuralNetwork([2, 8, 1])          // 2 entradas, 8 neuronas ocultas, 1 salida
-//   red.train([[0, 0], [0, 1], [1, 0], [1, 1]], [[0], [1], [1], [0]], 3000, 1)
-//   print(red.predict([1, 0]))
-//
-// Incluye redes neuronales de capas densas (perceptrón multicapa) entrenadas con descenso del
-// gradiente, regresión lineal, k vecinos más cercanos, k-medias, normalización, one-hot y métricas.
-// Los cálculos pesados los hace Matrix, en C++.
-
 /// Convierte una lista de filas (o una sola fila) en Matrix. Si ya es Matrix, la devuelve tal cual.
 function toMatrix(datos: any): Matrix {
     if datos is Matrix { return datos }
@@ -25,7 +14,6 @@ class Dense {
     var lastOutput: Matrix?
 
     constructor(entradas: number, salidas: number, activation: text = "sigmoid") {
-        // inicialización de Glorot: pesos pequeños y equilibrados según el tamaño de la capa
         var limite = sqrt(6 / (entradas + salidas))
         weights = Matrix.random(entradas, salidas, -limite, limite)
         bias = Matrix.zeros(1, salidas)
@@ -56,7 +44,7 @@ class Dense {
             "sigmoid" => grad * y * (y * -1 + 1)
             "relu" => grad * y.reluDeriv()
             "tanh" => grad * (y * y * -1 + 1)
-            else => grad // linear, y softmax con entropía cruzada (el gradiente ya viene calculado)
+            else => grad
         }
         var n = x.rows
         var gradPesos = x.transpose().dot(dz) / n

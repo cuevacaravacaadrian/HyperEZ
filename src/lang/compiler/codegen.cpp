@@ -7,10 +7,6 @@ namespace hz {
 
 CodeGen::CodeGen(VM& v, ModuleUnit& u) : vm(v), unit(u), diags(u.diags) {}
 
-// ---------------------------------------------------------------------------
-// Emisión
-// ---------------------------------------------------------------------------
-
 void CodeGen::setLoc(SrcLoc loc) {
     if (loc.line <= 0) return;
     auto& lines = fs->fn->lines;
@@ -25,7 +21,6 @@ void CodeGen::op(uint8_t o, SrcLoc loc) {
     fs->fn->code.push_back(o);
 }
 void CodeGen::u8(uint8_t v) { fs->fn->code.push_back(v); }
-// GET_PROP/SET_PROP llevan un byte de caché con el índice del campo (0xFF = desconocido).
 void CodeGen::propOp(uint8_t o, int name, SrcLoc loc) { op(o, loc); u16(name); u8(0xFF); }
 void CodeGen::u16(int v) {
     if (v < 0 || v > 0xFFFF) { diags.error(fs->lastLoc, "Función demasiado grande (más de 65535 constantes o saltos)", "divide el código en funciones más pequeñas", "E0900"); v = 0; }
@@ -33,8 +28,6 @@ void CodeGen::u16(int v) {
     fs->fn->code.push_back((uint8_t)(v & 0xFF));
 }
 int CodeGen::emitJump(uint8_t o, SrcLoc loc) {
-    // Peephole: "a < b" seguido de JUMP_IF_FALSE se convierte en JUMP_IF_NOT_LT (una instrucción menos
-    // y sin crear el booleano). Solo si la comparación es lo último emitido y ningún salto llega entre medias.
     auto& code = fs->fn->code;
     if (o == OP_JUMP_IF_FALSE && fs->lastOp == here() - 1 && fs->lastTarget < here()) {
         uint8_t fused = 0;
@@ -58,9 +51,6 @@ int CodeGen::emitJump(uint8_t o, SrcLoc loc) {
     return here() - 2;
 }
 void CodeGen::patchJump(int at) { patchJumpTo(at, here()); }
-// Descarta el valor de una asignación usada como sentencia. Peephole: SET_GLOBAL + POP es DEFINE_GLOBAL
-// y SET_LOCAL + POP es SET_LOCAL_POP (una instrucción menos en cada "x = ..." o "x += ..."). Solo si
-// el SET es lo último emitido y ningún salto llega al POP.
 void CodeGen::discardTop() {
     auto& code = fs->fn->code;
     if (fs->lastOp == here() - 3 && fs->lastTarget < here()) {
@@ -95,10 +85,6 @@ int CodeGen::addConst(Value v) {
     return (int)c.size() - 1;
 }
 int CodeGen::nameConst(const std::string& s) { return addConst(vm.str(s)); }
-
-// ---------------------------------------------------------------------------
-// Locales
-// ---------------------------------------------------------------------------
 
 void CodeGen::declareLocal(int expectedSlot, bool captured, SrcLoc loc) {
     if (expectedSlot >= 0 && expectedSlot != (int)fs->live.size()) {
@@ -135,10 +121,6 @@ void CodeGen::exitTries(int toDepth) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Funciones
-// ---------------------------------------------------------------------------
-
 static bool checkableType(const TypeRef* t) {
     if (!t) return false;
     static const std::set<std::string> prim = {"number", "int", "float", "text", "string", "bool", "list", "map", "set", "function"};
@@ -170,10 +152,9 @@ ObjFunction* CodeGen::compileFunction(FuncDecl* f, ClassStmt* owner, bool isFiel
     fn->minArity = minArity;
     state.lastLoc = f->loc;
     if (f->body) registerBlock(f->body.get());
-    state.live.push_back(false); // slot 0
+    state.live.push_back(false);
     for (auto& p : f->params) state.live.push_back(state.capturedHint.count(p.slot) ? state.capturedHint[p.slot] : false);
 
-    // Prólogo: valores por defecto y comprobación de tipos
     for (auto& p : f->params) {
         if (p.def) {
             op(OP_DEFAULT_ARG, p.loc); u16(p.slot);
@@ -230,10 +211,6 @@ void CodeGen::emitClosure(FuncDecl* f, ClassStmt* owner, SrcLoc loc, bool isFiel
     for (auto& up : f->upvalues) { u8(up.isLocal ? 1 : 0); u16(up.index); }
 }
 
-// ---------------------------------------------------------------------------
-// Script
-// ---------------------------------------------------------------------------
-
 ObjFunction* CodeGen::compileScript() {
     Program& prog = *unit.program;
     FnState state;
@@ -248,18 +225,14 @@ ObjFunction* CodeGen::compileScript() {
 
     auto& body = prog.body;
     std::vector<bool> done(body.size(), false);
-    // Consola interactiva: las sentencias de entradas anteriores ya se ejecutaron (solo se analizan).
     ReplSession* repl = unit.repl;
     if (repl) for (size_t i = 0; i < body.size(); i++) done[i] = body[i]->loc.offset < repl->start;
-    // 1) imports
     for (size_t i = 0; i < body.size(); i++) if (!done[i] && body[i]->kind == StmtKind::Import) { stmt(body[i].get()); done[i] = true; }
-    // 2) funciones, eventos, enums, interfaces (izado)
     for (size_t i = 0; i < body.size(); i++) {
         auto k = body[i]->kind;
         if (done[i]) continue;
         if (k == StmtKind::Function || k == StmtKind::Event || k == StmtKind::Enum || k == StmtKind::Interface) { stmt(body[i].get()); done[i] = true; }
     }
-    // 3) clases, con la clase base del mismo archivo antes que la derivada
     std::vector<ClassStmt*> classes;
     for (size_t i = 0; i < body.size(); i++) if (!done[i] && body[i]->kind == StmtKind::Class) { classes.push_back(static_cast<ClassStmt*>(body[i].get())); done[i] = true; }
     std::set<std::string> emitted;
@@ -273,7 +246,6 @@ ObjFunction* CodeGen::compileScript() {
             emitted.insert(c->name);
         }
     }
-    // 4) el resto en orden. En la consola se muestra el valor de una expresión final.
     for (size_t i = 0; i < body.size(); i++) {
         if (done[i]) continue;
         Stmt* s = body[i].get();
@@ -291,10 +263,6 @@ ObjFunction* CodeGen::compileScript() {
     return fn;
 }
 
-// ---------------------------------------------------------------------------
-// Sentencias
-// ---------------------------------------------------------------------------
-
 void CodeGen::block(BlockStmt* b) {
     registerBlock(b);
     int base = (int)fs->live.size();
@@ -305,7 +273,6 @@ void CodeGen::block(BlockStmt* b) {
 void CodeGen::classDecl(ClassStmt* c) {
     SrcLoc loc = c->loc;
     op(OP_CLASS, loc); u16(nameConst(c->name)); u8(c->isStruct ? 1 : 0);
-    // Carga un nombre global (posiblemente "Modulo.Clase") por su nombre
     auto loadNamed = [&](const std::string& full, SrcLoc loc) -> bool {
         std::string head = full.substr(0, full.find('.'));
         Resolution r;
@@ -419,8 +386,6 @@ void CodeGen::stmt(Stmt* s) {
             if (f->step) expr(f->step.get()); else { op(OP_CONST); u16(addConst(Value(1.0))); }
             declareLocal(f->slotStep, false, f->loc);
             if (!f->varCaptured) {
-                // La variable no la captura ninguna función: hueco fijo antes del bucle; FOR_CHECK_V y
-                // FOR_NEXT_V le copian el contador (2 instrucciones menos por vuelta).
                 op(OP_NULL, f->varLoc);
                 declareLocal(f->slotVar, false, f->varLoc);
                 LoopCtx loop;
@@ -556,7 +521,6 @@ void CodeGen::stmt(Stmt* s) {
             if (fin) callFinally(fin, t->loc);
             int endJ = emitJump(OP_JUMP);
             patchJump(tryJ);
-            // Excepción en la cima de la pila
             if (t->catchBody) {
                 int base = (int)fs->live.size();
                 declareLocal(t->catchSlot, t->catchCaptured, t->catchLoc);
@@ -571,7 +535,6 @@ void CodeGen::stmt(Stmt* s) {
                     callFinally(fin, t->loc);
                     int end2 = emitJump(OP_JUMP);
                     patchJump(try2);
-                    // excepción dentro del catch: finally y relanzar
                     callFinally(fin, t->loc);
                     op(OP_THROW);
                     patchJump(end2);
@@ -589,7 +552,6 @@ void CodeGen::stmt(Stmt* s) {
                 emitClosure(f, nullptr, f->loc);
                 op(OP_DEFINE_GLOBAL); u16(f->res.index);
             } else {
-                // Declarar el slot antes de crear la clausura (recursión)
                 declareLocal(f->res.index, fs->capturedHint.count(f->res.index) && fs->capturedHint[f->res.index], f->loc);
                 fs->live.pop_back();
                 emitClosure(f, nullptr, f->loc);
@@ -663,10 +625,6 @@ void CodeGen::stmt(Stmt* s) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Expresiones
-// ---------------------------------------------------------------------------
-
 void CodeGen::load(const Resolution& r, const std::string& name, SrcLoc loc) {
     switch (r.kind) {
         case VarKind::Local: op(OP_GET_LOCAL, loc); u16(r.index); break;
@@ -691,7 +649,6 @@ void CodeGen::store(const Resolution& r, const std::string& name, SrcLoc loc) {
         case VarKind::Upvalue: op(OP_SET_UPVAL, loc); u16(r.index); break;
         case VarKind::Global: op(OP_SET_GLOBAL, loc); u16(r.index); break;
         case VarKind::ThisMember:
-            // valor en la cima: [v] -> [this v] -> SET_PROP
             op(r.thisKind == VarKind::Local ? OP_GET_LOCAL : OP_GET_UPVAL, loc); u16(r.thisIndex);
             op(OP_SWAP);
             propOp(OP_SET_PROP, nameConst(name), loc);
@@ -862,7 +819,6 @@ void CodeGen::args(std::vector<Arg>& as, SrcLoc loc, std::function<void(int, int
 void CodeGen::call(CallExpr* c) {
     Expr* callee = c->callee.get();
     SrcLoc loc = c->loc;
-    // super(...)
     if (callee->kind == ExprKind::Super && static_cast<SuperExpr*>(callee)->member.empty()) {
         auto* s = static_cast<SuperExpr*>(callee);
         load(s->thisRes, "this", loc);
@@ -872,7 +828,6 @@ void CodeGen::call(CallExpr* c) {
         });
         return;
     }
-    // super.metodo(...)
     if (callee->kind == ExprKind::Super) {
         auto* s = static_cast<SuperExpr*>(callee);
         bool simple = !c->hasNamed();
@@ -889,7 +844,6 @@ void CodeGen::call(CallExpr* c) {
         }
         return;
     }
-    // obj.metodo(...)  -> INVOKE
     bool hasSpread = false;
     for (auto& a : c->args) if (a.spread) hasSpread = true;
     if (callee->kind == ExprKind::Member && !c->hasNamed() && !hasSpread && !c->optional) {
@@ -935,9 +889,8 @@ void CodeGen::matchExpr(MatchExpr* m) {
             expr(arm.guard.get());
             guardFail = emitJump(OP_JUMP_IF_FALSE, arm.guard->loc);
         }
-        op(OP_POP); // sujeto
+        op(OP_POP);
         if (arm.hasBlock) {
-            // El analizador envuelve el bloque del caso en un BlockStmt con sus locales.
             BlockStmt* blk = arm.block.size() == 1 && arm.block[0]->kind == StmtKind::Block ? static_cast<BlockStmt*>(arm.block[0].get()) : nullptr;
             ExprStmt* last = blk && !blk->body.empty() && blk->body.back()->kind == StmtKind::Expr ? static_cast<ExprStmt*>(blk->body.back().get()) : nullptr;
             if (last && last->isBlockValue) {
@@ -961,7 +914,6 @@ void CodeGen::matchExpr(MatchExpr* m) {
         } else op(OP_NULL);
         ends.push_back(emitJump(OP_JUMP));
         if (guardFail >= 0) {
-            // el guard falló: el sujeto sigue en la pila; saltamos al siguiente brazo
             int skip = here();
             patchJump(guardFail);
             (void)skip;
@@ -1143,4 +1095,4 @@ void CodeGen::expr(Expr* e) {
     }
 }
 
-} // namespace hz
+}

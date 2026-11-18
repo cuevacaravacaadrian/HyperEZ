@@ -15,6 +15,21 @@ if vida <= 0 {
 }
 ```
 
+`elif` es la forma corta de `else if`:
+
+```hz
+var nota = 7
+if nota >= 9 {
+    print("Sobresaliente")
+} elif nota >= 7 {
+    print("Notable")
+} elif nota >= 5 {
+    print("Aprobado")
+} else {
+    print("Suspenso")
+}
+```
+
 ## `while`
 
 ```hz
@@ -23,6 +38,19 @@ while n < 100 {
     n *= 2
 }
 print(n) // 128
+```
+
+## `loop`
+
+Repite el bloque para siempre, hasta un `break` (o un `return`). Es lo mismo que `while true`, más corto y más claro en bucles de juego y servidores.
+
+```hz
+var intentos = 0
+loop {
+    intentos++
+    if intentos == 3 { break }
+}
+print(intentos) // 3
 ```
 
 ## `do` ... `while`

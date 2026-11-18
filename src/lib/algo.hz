@@ -1,15 +1,3 @@
-// algo — algoritmos clásicos listos para usar: combinatoria, caminos en cuadrículas (A*),
-// relleno de zonas, subsecuencias y memorización de funciones.
-//
-//   import algo
-//   print(algo.permutations([1, 2, 3]))          // [[1, 2, 3], [1, 3, 2], ...]
-//   print(algo.combinations(["a", "b", "c"], 2)) // [[a, b], [a, c], [b, c]]
-//
-//   var mapa = ["S..#....",
-//               ".#.#.##.",
-//               ".#...#G."]
-//   print(algo.gridPath(mapa, [0, 0], [6, 2]))   // lista de [x, y] desde S hasta G evitando los #
-
 import collections
 
 /// Todas las ordenaciones posibles de una lista (n! resultados: úsalo con listas pequeñas).
@@ -110,10 +98,6 @@ function memoize(f: function): function {
         return cache[x]
     }
 }
-
-// ---------------------------------------------------------------------------
-// Cuadrículas: una lista de textos ("#" es pared) o una lista de listas (true/1 es pared)
-// ---------------------------------------------------------------------------
 
 /// ¿Se puede pisar la casilla (x, y)?
 function walkable(grid: list, x: number, y: number, pared: text = "#"): bool {

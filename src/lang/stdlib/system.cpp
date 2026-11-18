@@ -1,5 +1,3 @@
-// Sistema operativo: procesos (Process), rutas (Path), tiempo y fechas (Time) y más
-// funciones de archivos (File) y del sistema (System).
 #include "lang/stdlib/native.h"
 #include "core/process.h"
 
@@ -24,10 +22,6 @@
 namespace hz {
 
 namespace fs = std::filesystem;
-
-// ---------------------------------------------------------------------------
-// Process
-// ---------------------------------------------------------------------------
 
 static ProcessOptions processOptions(VM& vm, Value* args, int argc, int i, const char* fname) {
     ProcessOptions o;
@@ -75,18 +69,10 @@ NATIVE(proc_exit) {
     int code = (int)argNum(vm, args, argc, 0, "Process.exit", 0);
     vm.flushOutput();
     std::fflush(stderr);
-#ifdef __EMSCRIPTEN__
-    throw ProgramExit{code};
-#else
     std::exit(code);
-#endif
 }
 NATIVE(proc_open) { return Value::boolean(openWithSystem(argStr(vm, args, argc, 0, "Process.open"))); }
 NATIVE(proc_pid) { UNUSED; return Value(currentProcessId()); }
-
-// ---------------------------------------------------------------------------
-// Path
-// ---------------------------------------------------------------------------
 
 NATIVE(path_join) {
     std::string r;
@@ -147,10 +133,6 @@ NATIVE(path_sep) {
 #endif
 }
 
-// ---------------------------------------------------------------------------
-// File (más funciones)
-// ---------------------------------------------------------------------------
-
 NATIVE(file_copy) {
     std::string a = resolvePath(vm, argStr(vm, args, argc, 0, "File.copy"));
     std::string b = resolvePath(vm, argStr(vm, args, argc, 1, "File.copy"));
@@ -180,7 +162,6 @@ NATIVE(file_modified) {
     std::error_code ec;
     auto t = fs::last_write_time(FP(p), ec);
     if (ec) vm.raise("File.modified: no existe '" + argStr(vm, args, argc, 0, "File.modified") + "'");
-    // file_clock -> system_clock sin clock_cast (no está en todas las bibliotecas estándar)
     auto sys = std::chrono::system_clock::now() + std::chrono::duration_cast<std::chrono::system_clock::duration>(t - fs::file_time_type::clock::now());
     return Value(std::chrono::duration_cast<std::chrono::milliseconds>(sys.time_since_epoch()).count() / 1000.0);
 }
@@ -212,7 +193,6 @@ NATIVE(file_listAll) {
 NATIVE(file_deleteDir) {
     std::string given = argStr(vm, args, argc, 0, "File.deleteDir");
     std::string p = pathNormalize(pathAbsolute(resolvePath(vm, given)));
-    // Protección: nunca la raíz, la carpeta del proyecto ni la del usuario
     std::string root = vm.projectRoot.empty() ? "" : pathNormalize(pathAbsolute(vm.projectRoot));
     fs::path fp = FP(p);
     if (trim(given).empty() || given == "." || fp == fp.root_path() || p == root || !fp.has_relative_path())
@@ -231,10 +211,6 @@ NATIVE(file_tempFile) {
     std::string p = pathJoin(dir, "hyperez-" + std::to_string(currentProcessId()) + "-" + std::to_string(++counter) + ext);
     return vm.str(p);
 }
-
-// ---------------------------------------------------------------------------
-// Time
-// ---------------------------------------------------------------------------
 
 static double unixNow() {
     using namespace std::chrono;
@@ -296,10 +272,6 @@ NATIVE(time_measure) {
     return Value(nowSeconds() - t0);
 }
 NATIVE(time_clock) { UNUSED; return Value(nowSeconds()); }
-
-// ---------------------------------------------------------------------------
-// System (más)
-// ---------------------------------------------------------------------------
 
 NATIVE(sys_cpus) { UNUSED; return Value((double)std::max(1u, std::thread::hardware_concurrency())); }
 NATIVE(sys_user) {
@@ -404,4 +376,4 @@ void registerSystemLibs(VM& vm) {
     vm.defineFn(sys, "setEnv", "(nombre: text, valor?: any): void", "Cambia (o con null quita) una variable de entorno para este programa y los que lance.", sys_setEnv);
 }
 
-} // namespace hz
+}

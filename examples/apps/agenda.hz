@@ -1,5 +1,3 @@
-// Aplicación de consola: una agenda de contactos con menú, búsqueda y guardado en JSON.
-// Con teclado se usa con el menú; sin teclado (en las pruebas) hace una demostración sola.
 import cli
 
 struct Contacto { var nombre: text = ""; var telefono: text = ""; var email: text = "" }
@@ -49,7 +47,6 @@ if not Console.interactive { File.delete(ruta) }
 var agenda = Agenda(ruta)
 
 if not Console.interactive {
-    // Demostración automática
     agenda.agregar(Contacto("Lucía Pérez", "600 111 222", "lucia@correo.es"))
     agenda.agregar(Contacto("Andrés Gil", "611 333 444", "andres@correo.es"))
     agenda.agregar(Contacto("Marta Ruiz", "622 555 666", "marta@empresa.com"))

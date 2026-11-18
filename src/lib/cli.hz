@@ -1,9 +1,3 @@
-// cli — herramientas de línea de órdenes: leer argumentos (--opcion valor), preguntar y mostrar progreso.
-//
-//   import cli
-//   var a = cli.parseArgs(System.args)        // hyper copia.hz origen.txt --destino copia.txt -v
-//   print(a.positional, a.options.destino, a.flags.contains("v"))
-
 /// Separa los argumentos en posicionales, opciones (--nombre valor o --nombre=valor) y banderas (-v, --ayuda).
 /// Devuelve {positional: list, options: map, flags: list}.
 function parseArgs(argumentos: list): map {

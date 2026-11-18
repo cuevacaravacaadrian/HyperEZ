@@ -21,6 +21,7 @@ std::string TypeRef::toString() const {
 Parser::Parser(std::vector<Token> tokens, DiagnosticBag& d, std::vector<Comment> c)
     : toks(std::move(tokens)), diags(d), comments(std::move(c)) {
     if (toks.empty()) toks.push_back(Token{});
+    applyContextualKeywords(toks);
 }
 
 void Parser::fail(const SrcLoc& loc, const std::string& msg, const std::string& hint) {
@@ -61,7 +62,6 @@ void Parser::endStatement() {
 }
 
 void Parser::synchronize() {
-    // Avanzar hasta el inicio probable de la siguiente sentencia.
     int depth = 0;
     if (!check(Tok::Eof)) advance();
     while (!check(Tok::Eof)) {
@@ -86,7 +86,6 @@ void Parser::synchronize() {
 }
 
 std::string Parser::docFor(int line) {
-    // Comentarios contiguos que terminan justo en la línea anterior a la declaración.
     std::vector<const Comment*> found;
     int want = line - 1;
     for (int i = (int)comments.size() - 1; i >= 0; i--) {
@@ -100,7 +99,6 @@ std::string Parser::docFor(int line) {
     for (int i = (int)found.size() - 1; i >= 0; i--) {
         std::string t = found[i]->text;
         if (found[i]->block) {
-            // quitar /** */ y asteriscos iniciales
             if (startsWith(t, "/**")) t = t.substr(3); else if (startsWith(t, "/*")) t = t.substr(2);
             if (endsWith(t, "*/")) t = t.substr(0, t.size() - 2);
             for (auto& l : splitLines(t)) {
@@ -117,10 +115,6 @@ std::string Parser::docFor(int line) {
     while (!doc.empty() && doc.back() == '\n') doc.pop_back();
     return doc;
 }
-
-// ---------------------------------------------------------------------------
-// Sentencias
-// ---------------------------------------------------------------------------
 
 std::vector<StmtP> Parser::parseProgram() {
     std::vector<StmtP> body;
@@ -213,7 +207,16 @@ StmtP Parser::statement(bool topLevel) {
             if (t.text == "event" && n.kind == Tok::Ident && sameLine) return eventDecl();
             if (t.text == "emit" && n.kind == Tok::Ident && sameLine) return emitStmt();
             if (t.text == "from" && (n.kind == Tok::Ident || n.kind == Tok::String) && sameLine) return importStmt(true);
-            if (t.text == "do" && n.kind == Tok::LBrace) return doWhileStmt(); // do { ... } while condición
+            if (t.text == "do" && n.kind == Tok::LBrace) return doWhileStmt();
+            if (t.text == "loop" && n.kind == Tok::LBrace && sameLine) {
+                SrcLoc loc = advance().loc;
+                auto w = std::make_unique<WhileStmt>(loc);
+                w->cond = std::make_unique<BoolExpr>(loc, true);
+                w->body = block();
+                return w;
+            }
+            if (t.text == "elif" && atElif())
+                fail(t.loc, "'elif' sin 'if' previo", "elif va justo después de la llave '}' de un if");
             break;
         }
         default: break;
@@ -241,9 +244,6 @@ StmtP Parser::varDecl(Visibility vis) {
     return s;
 }
 
-// var [a, b, ...resto] = lista    var {nombre, vida: puntos} = jugador
-// Se traduce a una variable oculta con el valor y una declaración por cada nombre:
-//   var __d1 = lista; var a = __d1[0]; var b = __d1[1]; var resto = __d1.skip(2)
 StmtP Parser::destructure(const Token& kw, Visibility vis, DeclKind kind) {
     bool isList = check(Tok::LBracket);
     Token open = advance();
@@ -255,7 +255,7 @@ StmtP Parser::destructure(const Token& kw, Visibility vis, DeclKind kind) {
         if (isList && match(Tok::Ellipsis)) it.rest = true;
         it.name = expectIdent("nombre de variable", &it.loc);
         it.key = it.name;
-        if (!isList && match(Tok::Colon)) it.name = expectIdent("nombre de variable", &it.loc); // {clave: nombre}
+        if (!isList && match(Tok::Colon)) it.name = expectIdent("nombre de variable", &it.loc);
         if (it.rest && !items.empty() && items.back().rest) diags.error(it.loc, "Solo puede haber un '...' y debe ir al final", "", "E0103");
         items.push_back(it);
         if (!match(Tok::Comma)) break;
@@ -348,7 +348,7 @@ std::unique_ptr<FuncDecl> Parser::function(FuncKind kind, bool isAsync, Visibili
         fn->name = "constructor";
         fn->nameLoc = advance().loc;
     } else if (kind == FuncKind::Getter || kind == FuncKind::Setter) {
-        advance(); // get/set
+        advance();
         fn->name = expectIdent("nombre de propiedad", &fn->nameLoc);
     } else {
         expect(Tok::KwFunction, "'function'");
@@ -397,6 +397,18 @@ std::unique_ptr<BlockStmt> Parser::block() {
     return b;
 }
 
+bool Parser::atElif() const {
+    if (!checkWord("elif")) return false;
+    switch (ahead(1).kind) {
+        case Tok::Eq: case Tok::PlusEq: case Tok::MinusEq: case Tok::StarEq: case Tok::SlashEq: case Tok::PercentEq:
+        case Tok::StarStarEq: case Tok::QuestionQuestionEq: case Tok::Dot: case Tok::QuestionDot: case Tok::LBracket:
+        case Tok::PlusPlus: case Tok::MinusMinus: case Tok::Semicolon: case Tok::RBrace: case Tok::Eof:
+            return false;
+        default:
+            return !ahead(1).newlineBefore;
+    }
+}
+
 StmtP Parser::ifStmt() {
     SrcLoc loc = advance().loc;
     auto s = std::make_unique<IfStmt>(loc);
@@ -406,6 +418,8 @@ StmtP Parser::ifStmt() {
         advance();
         if (check(Tok::KwIf)) s->otherwise = ifStmt();
         else s->otherwise = block();
+    } else if (atElif()) {
+        s->otherwise = ifStmt();
     }
     return s;
 }
@@ -418,10 +432,8 @@ StmtP Parser::whileStmt() {
     return s;
 }
 
-// do { cuerpo } while c   ==>   { var __dwN = true; while __dwN or c { __dwN = false; cuerpo } }
-// El cuerpo se ejecuta al menos una vez y 'continue' vuelve a comprobar la condición.
 StmtP Parser::doWhileStmt() {
-    SrcLoc loc = advance().loc; // 'do'
+    SrcLoc loc = advance().loc;
     auto body = block();
     expect(Tok::KwWhile, "'while' después del bloque:  do { ... } while condición");
     ExprP cond = expression();
@@ -451,7 +463,6 @@ StmtP Parser::forStmt() {
     Token kw = advance();
     bool paren = false;
     if (check(Tok::LParen)) {
-        // for (i in 0..10) — paréntesis opcionales; el estilo C no existe
         size_t save = p;
         advance();
         if ((check(Tok::KwVar) || check(Tok::KwLet))) {
@@ -481,7 +492,7 @@ StmtP Parser::forStmt() {
     if (step) diags.error(iter->loc, "'step' solo se puede usar con rangos (a..b)", "", "E0104");
     auto s = std::make_unique<ForEachStmt>(kw.loc);
     if (v2.empty()) { s->var = v1; s->varLoc = v1loc; }
-    else { s->var = v2; s->varLoc = v2loc; s->var2 = v1; s->var2Loc = v1loc; } // for clave, valor  /  for indice, valor
+    else { s->var = v2; s->varLoc = v2loc; s->var2 = v1; s->var2Loc = v1loc; }
     s->iterable = std::move(iter);
     s->body = block();
     return s;
@@ -569,7 +580,6 @@ StmtP Parser::classDecl(bool isStruct) {
                 if (match(Tok::Colon)) f.type = type();
                 if (match(Tok::Eq)) f.init = expression();
                 c->fields.push_back(std::move(f));
-                // Varios campos en una línea: var x = 0, y = 0
                 while (match(Tok::Comma)) {
                     FieldDecl g;
                     g.declKind = c->fields.back().declKind; g.vis = vis; g.isStatic = isStatic;
@@ -578,6 +588,37 @@ StmtP Parser::classDecl(bool isStruct) {
                     if (match(Tok::Eq)) g.init = expression();
                     c->fields.push_back(std::move(g));
                 }
+                endStatement();
+            } else if (checkWord("event") && ahead(1).kind == Tok::Ident && !ahead(1).newlineBefore) {
+                Token kw = advance();
+                FieldDecl f;
+                f.doc = docFor(kw.loc.line);
+                f.declKind = DeclKind::Let;
+                f.vis = vis; f.isStatic = isStatic;
+                f.name = expectIdent("nombre de evento", &f.loc);
+                std::vector<Param> params;
+                if (check(Tok::LParen) && !cur().newlineBefore) paramList(params);
+                auto t = std::make_unique<TypeRef>();
+                t->name = "Event";
+                t->loc = f.loc;
+                f.type = std::move(t);
+                auto call = std::make_unique<CallExpr>(f.loc);
+                call->callee = std::make_unique<IdentExpr>(f.loc, "createEvent");
+                auto nameStr = std::make_unique<StringExpr>(f.loc);
+                nameStr->parts.push_back({false, c->name + "." + f.name, nullptr});
+                Arg a1; a1.value = std::move(nameStr);
+                call->args.push_back(std::move(a1));
+                auto list = std::make_unique<ListExpr>(f.loc);
+                for (auto& p : params) {
+                    auto ps = std::make_unique<StringExpr>(p.loc);
+                    ps->parts.push_back({false, p.name, nullptr});
+                    list->items.push_back(std::move(ps));
+                    list->spread.push_back(false);
+                }
+                Arg a2; a2.value = std::move(list);
+                call->args.push_back(std::move(a2));
+                f.init = std::move(call);
+                c->fields.push_back(std::move(f));
                 endStatement();
             } else if (check(Tok::KwConstructor)) {
                 if (c->ctor) diags.error(cur().loc, "La clase '" + c->name + "' ya tiene un constructor", "", "E0105");
@@ -626,7 +667,6 @@ StmtP Parser::interfaceDecl() {
             s->methods.push_back(std::move(m));
             endStatement();
         } else if (check(Tok::KwVar) || check(Tok::KwLet)) {
-            // Propiedades requeridas: se aceptan como documentación.
             advance(); expectIdent("nombre");
             if (match(Tok::Colon)) type();
             endStatement();
@@ -663,7 +703,7 @@ StmtP Parser::enumDecl() {
 }
 
 StmtP Parser::eventDecl() {
-    SrcLoc loc = advance().loc; // 'event'
+    SrcLoc loc = advance().loc;
     auto s = std::make_unique<EventStmt>(loc);
     s->doc = docFor(loc.line);
     s->name = expectIdent("nombre de evento", &s->nameLoc);
@@ -673,7 +713,7 @@ StmtP Parser::eventDecl() {
 }
 
 StmtP Parser::emitStmt() {
-    SrcLoc loc = advance().loc; // 'emit'
+    SrcLoc loc = advance().loc;
     auto s = std::make_unique<EmitStmt>(loc);
     SrcLoc nl;
     std::string name = expectIdent("nombre de evento", &nl);
@@ -708,6 +748,11 @@ StmtP Parser::importStmt(bool fromForm) {
     if (fromForm) {
         if (!check(Tok::KwImport)) fail(cur().loc, "Se esperaba 'import' en 'from módulo import nombre'");
         advance();
+        if (match(Tok::Star)) {
+            s->importAll = true;
+            endStatement();
+            return s;
+        }
         do {
             SrcLoc l;
             std::string n = expectIdent("nombre a importar", &l);
@@ -732,7 +777,6 @@ TypeRefP Parser::type() {
     if (check(Tok::KwFunction)) { advance(); t->name = "function"; }
     else if (check(Tok::KwNull)) { advance(); t->name = "null"; }
     else if (check(Tok::LParen)) {
-        // (a, b) => R  — tipo de función; se trata como "function"
         int depth = 0;
         do {
             if (check(Tok::LParen)) depth++;
@@ -754,7 +798,6 @@ TypeRefP Parser::type() {
         }
     }
     if (check(Tok::Question) && !cur().newlineBefore) {
-        // "x is Raw ? a : b": si tras el ? empieza una expresión, el ? es el operador condicional
         Tok n = ahead(1).kind;
         bool startsExpr = !ahead(1).newlineBefore &&
                           (n == Tok::Ident || n == Tok::Number || n == Tok::String || n == Tok::LParen || n == Tok::LBracket ||
@@ -766,10 +809,6 @@ TypeRefP Parser::type() {
     t->loc.length = prev().loc.offset + prev().loc.length - t->loc.offset;
     return t;
 }
-
-// ---------------------------------------------------------------------------
-// Expresiones
-// ---------------------------------------------------------------------------
 
 bool Parser::continuesOnNewline(const Token& t) const {
     if (!newlinesMatter() || !t.newlineBefore) return true;
@@ -802,14 +841,6 @@ ExprP Parser::assignment() {
 
 ExprP Parser::expression() { return pipeline(); }
 
-// ---------------------------------------------------------------------------
-// Azúcar sintáctico (0.8): tubería |>, comprensiones y propagación en mapas.
-// Todo se traduce aquí a código normal, así que el analizador y el compilador no cambian.
-// ---------------------------------------------------------------------------
-
-// a |> f      → f(a)
-// a |> f(x)   → f(a, x)        (el valor entra como primer argumento)
-// a |> obj.m  → obj.m(a)
 ExprP Parser::pipeline() {
     ExprP left = ternary();
     while (check(Tok::PipeGreater)) {
@@ -831,9 +862,6 @@ ExprP Parser::pipeline() {
     return left;
 }
 
-// Construye  (() => { var __cN = []; for ... { if cond { __cN.add(elem) } }; return __cN })()
-// value == nullptr: comprensión de lista; si no, de mapa (elem es la clave).
-// Se entra justo después de la palabra 'for'.
 ExprP Parser::comprehension(SrcLoc loc, ExprP elem, ExprP value) {
     std::string var2;
     SrcLoc var2Loc;
@@ -857,7 +885,6 @@ ExprP Parser::comprehension(SrcLoc loc, ExprP elem, ExprP value) {
     else decl->init = std::make_unique<ListExpr>(loc);
     body->body.push_back(std::move(decl));
 
-    // lo que se hace en cada vuelta
     StmtP add;
     if (value) {
         auto ix = std::make_unique<IndexExpr>(elem->loc);
@@ -888,7 +915,6 @@ ExprP Parser::comprehension(SrcLoc loc, ExprP elem, ExprP value) {
     auto loopBody = std::make_unique<BlockStmt>(loc);
     loopBody->body.push_back(std::move(add));
 
-    // for numérico si se recorre a..b (más rápido); si no, foreach
     if (iterable->kind == ExprKind::Range && var2.empty()) {
         auto* r = static_cast<RangeExpr*>(iterable.get());
         auto fr = std::make_unique<ForRangeStmt>(loc);
@@ -905,7 +931,7 @@ ExprP Parser::comprehension(SrcLoc loc, ExprP elem, ExprP value) {
         if (var2.empty()) {
             fe->var = var;
             fe->varLoc = varLoc;
-        } else { // for i, x in lista: igual que en foreach
+        } else {
             fe->var2 = var;
             fe->var2Loc = varLoc;
             fe->var = var2;
@@ -931,7 +957,6 @@ ExprP Parser::comprehension(SrcLoc loc, ExprP elem, ExprP value) {
     return call;
 }
 
-// Dentro de obj[...]: además de cualquier expresión, los rangos abiertos [..3], [2..] y [..]
 ExprP Parser::indexExpression() {
     indexDepth++;
     ExprP r;
@@ -949,7 +974,6 @@ ExprP Parser::indexExpression() {
     indexDepth--;
     return r;
 }
-
 
 ExprP Parser::ternary() {
     ExprP cond = nullish();
@@ -1026,7 +1050,7 @@ ExprP Parser::comparison() {
             is->negate = match(Tok::KwNot);
             is->operand = std::move(left);
             bool savedIs = inIsType;
-            inIsType = true; // tras "is", "text ? {...} : x" es una condición con un mapa, no "text?"
+            inIsType = true;
             is->target = type();
             inIsType = savedIs;
             left = std::move(is);
@@ -1071,7 +1095,7 @@ ExprP Parser::range() {
         auto r = std::make_unique<RangeExpr>(left->loc);
         r->inclusive = op.kind == Tok::DotDotEq;
         r->start = std::move(left);
-        if (indexDepth > 0 && check(Tok::RBracket)) r->end = std::make_unique<NumberExpr>(op.loc, 9e15, true); // lista[2..]
+        if (indexDepth > 0 && check(Tok::RBracket)) r->end = std::make_unique<NumberExpr>(op.loc, 9e15, true);
         else r->end = additive();
         return r;
     }
@@ -1101,7 +1125,6 @@ ExprP Parser::unary() {
     if (k == Tok::Minus || k == Tok::Plus || k == Tok::Bang || k == Tok::Tilde) {
         Token op = advance();
         ExprP operand = unary();
-        // Plegado de literales negativos
         if (k == Tok::Minus && operand->kind == ExprKind::Number) {
             auto* n = static_cast<NumberExpr*>(operand.get());
             n->value = -n->value;
@@ -1236,7 +1259,6 @@ ExprP Parser::postfix() {
 }
 
 bool Parser::looksLikeLambda() const {
-    // Estamos en '('. Buscar el ')' correspondiente y comprobar si sigue '=>' (o ': Tipo =>').
     size_t i = p;
     int depth = 0;
     for (; i < toks.size(); i++) {
@@ -1306,7 +1328,6 @@ ExprP Parser::stringLiteral(const Token& t) {
             sp.expr = ps.parseStandaloneExpression();
             if (!sp.expr) sp.expr = std::make_unique<NullExpr>(part.loc);
             if (!part.spec.empty()) {
-                // "${precio:.2f}"  ==>  __format(precio, ".2f")  (la misma función que format)
                 auto c = std::make_unique<CallExpr>(part.loc);
                 c->callee = std::make_unique<IdentExpr>(part.loc, "__format");
                 Arg value;
@@ -1338,7 +1359,6 @@ ExprP Parser::listLiteral() {
         bool spread = match(Tok::Ellipsis);
         ExprP item = expression();
         if (!spread && l->items.empty() && check(Tok::KwFor)) {
-            // [x * 2 for x in lista if x > 0]
             advance();
             ExprP comp = comprehension(open.loc, std::move(item), nullptr);
             nlStack.pop_back();
@@ -1367,7 +1387,6 @@ ExprP Parser::mapLiteral() {
     nlStack.push_back(false);
     int savedIndex = indexDepth;
     indexDepth = 0;
-    // {a: 1, ...otro, b: 2}  →  {a: 1}.merge(otro).merge({b: 2}): las claves de la derecha ganan
     ExprP merged;
     auto mergeInto = [&](ExprP base, ExprP other, SrcLoc loc) -> ExprP {
         auto mem = std::make_unique<MemberExpr>(loc);
@@ -1407,7 +1426,6 @@ ExprP Parser::mapLiteral() {
             s->parts.push_back({false, k.text, nullptr});
             key = std::move(s);
             if (k.kind == Tok::Ident && (check(Tok::Comma) || check(Tok::RBrace) || cur().newlineBefore) && !check(Tok::Colon)) {
-                // Atajo { nombre } == { nombre: nombre }
                 m->entries.push_back({std::move(key), std::make_unique<IdentExpr>(k.loc, k.text)});
                 if (!match(Tok::Comma) && !check(Tok::RBrace) && !cur().newlineBefore) break;
                 continue;
@@ -1427,7 +1445,6 @@ ExprP Parser::mapLiteral() {
         expect(Tok::Colon, "':' entre la clave y el valor");
         ExprP val = expression();
         if (m->entries.empty() && !merged && check(Tok::KwFor)) {
-            // {[n]: n * n for n in 1..=3}  (en una comprensión la clave también puede ir sin corchetes: {n: n * n for ...})
             advance();
             if (bareKey) key = std::make_unique<IdentExpr>(keyTok.loc, keyTok.text);
             ExprP comp = comprehension(open.loc, std::move(key), std::move(val));
@@ -1465,8 +1482,6 @@ ExprP Parser::matchExpr() {
     const size_t base = nlStack.size();
     while (!check(Tok::RBrace) && !check(Tok::Eof)) {
         if (match(Tok::Semicolon) || match(Tok::Comma)) continue;
-        // Un error en un caso no debe romper el resto del match ni las llaves de fuera:
-        // se informa y se salta hasta el siguiente caso o hasta la '}' del match.
         try {
             MatchArm arm;
             arm.loc = cur().loc;
@@ -1476,7 +1491,7 @@ ExprP Parser::matchExpr() {
             } else {
                 nlStack.push_back(false);
                 size_t saved = noLambdaLevel;
-                noLambdaLevel = nlStack.size(); // "valor => ..." es el caso, no una lambda
+                noLambdaLevel = nlStack.size();
                 do { arm.patterns.push_back(expression()); } while (match(Tok::Comma));
                 noLambdaLevel = saved;
                 nlStack.pop_back();
@@ -1484,7 +1499,7 @@ ExprP Parser::matchExpr() {
             if (check(Tok::KwIf)) {
                 advance();
                 size_t saved = noLambdaLevel;
-                noLambdaLevel = nlStack.size(); // "_ if n < limite => ...": limite no es una lambda
+                noLambdaLevel = nlStack.size();
                 arm.guard = expression();
                 noLambdaLevel = saved;
             }
@@ -1500,7 +1515,7 @@ ExprP Parser::matchExpr() {
             } else {
                 arm.body = assignment();
             }
-            bool wasBlock = arm.hasBlock; // tras '}' puede seguir otro caso en la misma línea
+            bool wasBlock = arm.hasBlock;
             m->arms.push_back(std::move(arm));
             if (!wasBlock && !check(Tok::RBrace) && !match(Tok::Comma) && !match(Tok::Semicolon) && !cur().newlineBefore)
                 fail(cur().loc, "Se esperaba un salto de línea o ',' entre los casos del match");
@@ -1524,7 +1539,7 @@ ExprP Parser::matchExpr() {
 }
 
 ExprP Parser::onExpr(bool once) {
-    Token kw = advance(); // on / once
+    Token kw = advance();
     auto o = std::make_unique<OnExpr>(kw.loc);
     o->once = once;
     SrcLoc nl;
@@ -1631,4 +1646,4 @@ std::unique_ptr<Program> parseSource(const std::string& file, const std::string&
     return prog;
 }
 
-} // namespace hz
+}

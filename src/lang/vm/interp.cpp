@@ -1,4 +1,3 @@
-// Intérprete de bytecode: bucle principal, llamadas, propiedades, fibras.
 #include "lang/vm/vm.h"
 #include "lang/sema/analyzer.h"
 
@@ -9,10 +8,6 @@ namespace hz {
 
 static constexpr int kMaxFrames = 8000;
 static constexpr int kMaxNativeDepth = 220;
-
-// ---------------------------------------------------------------------------
-// Upvalues
-// ---------------------------------------------------------------------------
 
 ObjUpvalue* VM::captureUpvalue(int slot) {
     ObjFiber* f = fiber;
@@ -37,10 +32,6 @@ void VM::closeUpvalues(int from) {
         f->openUpvalues = u->nextOpen;
     }
 }
-
-// ---------------------------------------------------------------------------
-// Excepciones
-// ---------------------------------------------------------------------------
 
 bool VM::throwValue(Value err) {
     ObjFiber* f = fiber;
@@ -88,10 +79,6 @@ void VM::errorInit(ObjInstance* inst, Value message) {
         inst->fields[5] = Value((double)l.col);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Llamadas
-// ---------------------------------------------------------------------------
 
 static std::string fnLabel(ObjFunction* fn) {
     std::string n = fn->name ? fn->name->str : "?";
@@ -156,6 +143,7 @@ bool VM::callNative(ObjNative* n, int argc) {
     Value r;
     {
         DepthGuard g(nativeDepth);
+        NativeScope ns(*this, n);
         r = n->fn(*this, argc, buf + 1);
     }
     f = fiber;
@@ -167,7 +155,6 @@ bool VM::callNative(ObjNative* n, int argc) {
 bool VM::callMethodValue(Value method, int argc) {
     if (isObjType(method, OT::Closure)) return callClosure(static_cast<ObjClosure*>(method.o), argc);
     if (isObjType(method, OT::Native)) return callNative(static_cast<ObjNative*>(method.o), argc);
-    // otro invocable (campo con función): sustituir el receptor
     fiber->stack[fiber->sp - argc - 1] = method;
     return callValue(method, argc);
 }
@@ -224,7 +211,6 @@ bool VM::reorderNamed(Value callee, int& argc, ObjList* names) {
         raise("Un valor de tipo " + typeName(callee) + " no es una función");
     }
     if (nativeOpts) {
-        // Los argumentos con nombre se agrupan en un mapa de opciones al final
         std::vector<Value> positional;
         ObjMap* opts = newMap();
         tempRoots.push_back(Value::object(opts));
@@ -325,12 +311,9 @@ static Value callNativeAccessor(VM& vm, Value fn, Value self, int argc, const Va
     Value buf[3];
     buf[0] = self;
     for (int i = 0; i < argc && i < 2; i++) buf[1 + i] = args[i];
+    NativeScope ns(vm, n);
     return n->fn(vm, argc, buf + 1);
 }
-
-// ---------------------------------------------------------------------------
-// Llamadas desde C++
-// ---------------------------------------------------------------------------
 
 Value VM::call(Value fnv, int argc, const Value* args) {
     if (!fiber) {
@@ -369,6 +352,7 @@ Value VM::callBound(Value method, Value self, int argc, const Value* args) {
         buf[0] = self;
         for (int i = 0; i < argc; i++) buf[i + 1] = args[i];
         DepthGuard g(nativeDepth);
+        NativeScope ns(*this, static_cast<ObjNative*>(method.o));
         return static_cast<ObjNative*>(method.o)->fn(*this, argc, buf.data() + 1);
     }
     if (!isObjType(method, OT::Closure)) return call(method, argc, args);
@@ -448,10 +432,6 @@ bool VM::tryCall(Value fn, int argc, const Value* args, Value* out) {
         return false;
     }
 }
-
-// ---------------------------------------------------------------------------
-// Invocación de métodos
-// ---------------------------------------------------------------------------
 
 bool VM::invoke(ObjString* name, int argc) {
     ObjFiber* f = fiber;
@@ -557,10 +537,6 @@ bool VM::invoke(ObjString* name, int argc) {
     }
     raise("No se puede llamar a métodos de un valor de tipo " + typeName(recv));
 }
-
-// ---------------------------------------------------------------------------
-// Propiedades e índices
-// ---------------------------------------------------------------------------
 
 static const char* kVecNames[5][4] = {{"x", "y", "", ""}, {"x", "y", "z", ""}, {"x", "y", "z", "w"}, {"r", "g", "b", "a"}, {"x", "y", "z", "w"}};
 
@@ -784,7 +760,6 @@ Value VM::getIndex(Value obj, Value idx) {
                     ObjList* out = newList();
                     long len = (long)items.size();
                     if (r->step == 1) {
-                        // lista[a..b], lista[2..], lista[..3], lista[-2..]: como en los textos, se recortan los límites
                         double sa = r->start, sb = r->end + (r->inclusive ? 1 : 0);
                         long a = (long)std::clamp(sa < 0 ? sa + len : sa, -1.0, (double)len + 1);
                         long b = (long)std::clamp(sb < 0 ? sb + len : sb, -1.0, (double)len + 1);
@@ -793,7 +768,7 @@ Value VM::getIndex(Value obj, Value idx) {
                         out->items.assign(items.begin() + a, items.begin() + b);
                         return Value::object(out);
                     }
-                    double n = std::min(r->count(), (double)len * 2 + 2); // con otro paso nunca hacen falta más vueltas
+                    double n = std::min(r->count(), (double)len * 2 + 2);
                     for (double k = 0; k < n; k++) {
                         long i = (long)(r->start + k * r->step);
                         if (i < 0) i += len;
@@ -814,7 +789,6 @@ Value VM::getIndex(Value obj, Value idx) {
                 size_t len = utf8Length(s);
                 if (isObjType(idx, OT::Range)) {
                     auto* r = static_cast<ObjRange*>(idx.o);
-                    // en double hasta recortar: texto[2..] usa un final enorme que no cabe en un long de 32 bits
                     double da = r->start, db = r->end + (r->inclusive ? 1 : 0);
                     long a = (long)std::clamp(da < 0 ? da + (double)len : da, 0.0, (double)len);
                     long b = (long)std::clamp(db < 0 ? db + (double)len : db, (double)a, (double)len);
@@ -892,10 +866,6 @@ void VM::setIndex(Value obj, Value idx, Value v) {
     raise("No se puede asignar por índice a un valor de tipo " + typeName(obj));
 }
 
-// ---------------------------------------------------------------------------
-// Operadores
-// ---------------------------------------------------------------------------
-
 static const char* opWord(uint8_t op) {
     switch (op) {
         case OP_ADD: return "sumar";
@@ -969,7 +939,7 @@ Value VM::arith(uint8_t op, Value a, Value b) {
         }
         return str(s);
     }
-    if (op == OP_MUL && isObjType(a, OT::List) && b.isNum()) { // [0] * 5 = [0, 0, 0, 0, 0]
+    if (op == OP_MUL && isObjType(a, OT::List) && b.isNum()) {
         ObjList* r = newList();
         auto& x = static_cast<ObjList*>(a.o)->items;
         long long n = (long long)b.n;
@@ -1023,8 +993,6 @@ Value VM::arith(uint8_t op, Value a, Value b) {
             return Value::object(r);
         }
     }
-    // Sobrecarga de operadores (clases propias y nativas como Matrix): métodos add, sub, mul, div, mod y pow,
-    // y compareTo (devuelve un número negativo, 0 o positivo) para <, <=, > y >=.
     auto opMethod = [&](const Value& v, const char* name) -> Value* {
         if (!(isObjType(v, OT::Instance) || isObjType(v, OT::Foreign))) return nullptr;
         ObjClass* cls = classOf(v);
@@ -1035,7 +1003,6 @@ Value VM::arith(uint8_t op, Value a, Value b) {
                       : op == OP_MOD ? "mod" : op == OP_POW ? "pow" : nullptr;
     if (mname) {
         if (Value* m = opMethod(a, mname)) return callBound(*m, a, 1, &b);
-        // número + objeto y número * objeto: se usan los del objeto (son conmutativas)
         if (a.isNum() && (op == OP_ADD || op == OP_MUL))
             if (Value* m = opMethod(b, mname)) return callBound(*m, b, 1, &a);
     } else if (op == OP_LT || op == OP_LE || op == OP_GT || op == OP_GE) {
@@ -1075,10 +1042,6 @@ bool VM::contains(Value c, Value item) {
     }
     raise("'in' necesita una lista, mapa, conjunto, texto o rango, no " + typeName(c));
 }
-
-// ---------------------------------------------------------------------------
-// Fibras
-// ---------------------------------------------------------------------------
 
 bool VM::startAsync(ObjClosure* c, int argc) {
     ObjFiber* caller = fiber;
@@ -1186,10 +1149,6 @@ bool VM::runModule(ModuleUnit* unit) {
     return true;
 }
 
-// ---------------------------------------------------------------------------
-// Bucle principal
-// ---------------------------------------------------------------------------
-
 RunResult VM::run(int exitDepth) {
     int savedExit = currentExitDepth;
     currentExitDepth = exitDepth;
@@ -1221,7 +1180,6 @@ RunResult VM::run(int exitDepth) {
         STK[f->sp++] = _pv;                                               \
     } while (0)
 #define POP() (STK[--f->sp])
-// Entra en una función del script sin pasar por callValue si los argumentos encajan exactamente.
 #define TRY_FAST_CALL(closure, argcount)                                                   \
     do {                                                                                   \
         ObjClosure* fc_ = (closure);                                                       \
@@ -1264,7 +1222,6 @@ RunResult VM::run(int exitDepth) {
         f = fiber;                                                          \
         LOAD();                                                             \
     } while (0)
-
 
     LOAD();
     for (;;) {
@@ -1394,8 +1351,6 @@ RunResult VM::run(int exitDepth) {
                 f->sp--;
                 break;
             }
-            // Operaciones con dos números: cada una tiene su propio caso (sin un segundo switch) y, si los
-            // operandos no son números, todas comparten el camino lento (arith: textos, vectores, sobrecarga).
 #define NUM_BINOP(OPC, EXPR)                                         \
             case OPC: {                                              \
                 Value b_ = PEEK(0), a_ = PEEK(1);                    \
@@ -1424,7 +1379,6 @@ RunResult VM::run(int exitDepth) {
                 Value b = PEEK(0), a = PEEK(1);
                 if (a.isNum() && b.isNum() && b.n != 0) {
                     double x = a.n, y = b.n, m;
-                    // Enteros de 32 bits (lo normal: i % 7): la división de 32 bits es mucho más rápida
                     if (x >= -2147483648.0 && x <= 2147483647.0 && y >= -2147483648.0 && y <= 2147483647.0 &&
                         x == (double)(int32_t)x && y == (double)(int32_t)y) {
                         int32_t yi = (int32_t)y;
@@ -1473,7 +1427,7 @@ RunResult VM::run(int exitDepth) {
                 Value b = PEEK(0), a = PEEK(1);
                 bool e;
                 if (a.t == VT::Obj && b.t == VT::Obj && a.o != b.o && (a.o->type == OT::Instance || a.o->type == OT::Foreign)) {
-                    GUARD(e = objectsEqual(a, b)); // puede llamar a equals() del script
+                    GUARD(e = objectsEqual(a, b));
                 } else {
                     e = valuesEqual(a, b);
                 }
@@ -1549,7 +1503,6 @@ RunResult VM::run(int exitDepth) {
                 int argc = RD8();
                 if (bytesAllocated > nextGC && gcEnabled) { SAVE(); collectGarbage(); }
                 Value callee = PEEK(argc);
-                // Camino rápido: función del script con exactamente sus argumentos (el caso más común)
                 if (callee.t == VT::Obj && callee.o->type == OT::Closure) TRY_FAST_CALL(static_cast<ObjClosure*>(callee.o), argc);
                 GUARD(callValue(callee, argc));
                 break;
@@ -1866,7 +1819,7 @@ RunResult VM::run(int exitDepth) {
                 bool incl = RD8();
                 uint16_t back = RD16();
                 double s = slots[slot + 2].n;
-                double c = (slots[slot].n += s), e = slots[slot + 1].n; // FOR_CHECK ya comprobó que son números
+                double c = (slots[slot].n += s), e = slots[slot + 1].n;
                 if (s > 0 ? (incl ? c <= e : c < e) : (incl ? c >= e : c > e)) {
                     ip -= back;
                     if (bytesAllocated > nextGC && gcEnabled) { SAVE(); collectGarbage(); }
@@ -2075,4 +2028,4 @@ RunResult VM::run(int exitDepth) {
 #undef GUARD
 }
 
-} // namespace hz
+}

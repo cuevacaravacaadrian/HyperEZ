@@ -1,4 +1,3 @@
-// Mi primer programa en HyperEZ
 var nombre = "Mundo"
 print("¡Hola, ${nombre}!")
 

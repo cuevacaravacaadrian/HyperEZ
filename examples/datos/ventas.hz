@@ -1,16 +1,13 @@
-// Análisis de datos: lee un CSV, calcula estadísticas, agrupa y guarda un informe.
 import csv
 import stats
 import cli
 
-var ventas = csv.read("ventas.csv") // las rutas parten de la carpeta del programa
+var ventas = csv.read("ventas.csv")
 print("Leídas ${ventas.length} ventas de ${ventas.map(v => v.fecha).unique().length} días")
 print()
 
-// Importe de cada venta
 foreach v in ventas { v.importe = round(v.unidades * v.precio, 2) }
 
-// Agrupar por producto
 var porProducto = ventas.groupBy(v => v.producto)
 var filas = [["producto", "unidades", "importe", "media/día"]]
 var resumen = []
@@ -31,7 +28,6 @@ var mejor = resumen.maxBy(r => r.importe)
 print("Producto que más factura: ${mejor.producto} (${mejor.importe} €)")
 print("Total facturado: ${round(importes.sum(), 2)} €")
 
-// Guardar el informe (en la carpeta temporal para no ensuciar el ejemplo)
 var salida = Path.join(Path.temp, "resumen_ventas.csv")
 csv.write(salida, resumen)
 print()

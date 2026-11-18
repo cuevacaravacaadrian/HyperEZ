@@ -1,7 +1,3 @@
-# Prueba del formateador (ctest "formato"):
-#   1. desordenado.hz formateado debe quedar exactamente como desordenado.ordenado.hz
-#   2. el código del repositorio (ejemplos, pruebas, bibliotecas) ya debe tener buen formato
-#   cmake -DHYPER=<hyper> -DRAIZ=<repo> -DTMP=<carpeta> -P check_fmt.cmake
 file(MAKE_DIRECTORY "${TMP}")
 configure_file("${RAIZ}/tests/fmt/desordenado.hz" "${TMP}/desordenado.hz" COPYONLY)
 execute_process(COMMAND "${HYPER}" fmt "${TMP}/desordenado.hz" RESULT_VARIABLE rc OUTPUT_QUIET ERROR_VARIABLE err)

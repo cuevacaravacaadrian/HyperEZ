@@ -19,7 +19,7 @@ Todo HyperEZ está en un solo ejecutable: `hyper` (`hyper.exe` en Windows).
 | `hyper docs [salida.md]` | Genera la referencia de toda la API en Markdown |
 | `hyper bytecode <archivo.hz>` | Muestra las instrucciones que genera el compilador |
 | `hyper lsp` | Servidor de lenguaje (lo usan los editores) |
-| `hyper register` / `hyper unregister` | Asocia (o desasocia) los `.hz`/`.hez` con este `hyper` |
+| `hyper register` / `hyper unregister` | Registra (o quita) el lenguaje en el sistema y en tus editores ([instaladores](instaladores.md)) |
 | `hyper version` | Versión |
 | `hyper help` | Ayuda |
 
@@ -27,7 +27,7 @@ Todo HyperEZ está en un solo ejecutable: `hyper` (`hyper.exe` en Windows).
 
 | Opción | |
 |---|---|
-| `--as <ruta>` | ejecuta el archivo como si estuviera en `<ruta>`: las importaciones, `System.scriptDir` y los errores usan esa ruta. Lo usan HyperEZ Editor, VS Code y el editor web para **ejecutar sin guardar** |
+| `--as <ruta>` | ejecuta el archivo como si estuviera en `<ruta>`: las importaciones, `System.scriptDir` y los errores usan esa ruta. Lo usan HyperEZ Editor y VS Code para **ejecutar sin guardar** |
 | `--pause` | espera una tecla al terminar (lo usan el doble clic en Windows y F5 en VS Code); también vale para `hyper check` y `hyper test` |
 | `--` | todo lo que sigue se pasa al programa aunque empiece por `-` |
 

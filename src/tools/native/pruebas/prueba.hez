@@ -1,4 +1,3 @@
-// Prueba del compilador nativo (hyper build): structs, métodos, bucles, constantes, datos y llamadas
 import "./util.hez"
 
 const ANCHO = 64

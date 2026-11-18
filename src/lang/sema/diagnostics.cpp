@@ -20,7 +20,6 @@ void printDiagnostic(FILE* out, const Diagnostic& d, std::string_view source, co
         return;
     }
     std::fprintf(out, "  %s-->%s %s:%d:%d\n", color::blue(), color::reset(), d.file.c_str(), d.loc.line, d.loc.col);
-    // Línea de código
     int line = 1;
     size_t start = 0;
     for (size_t i = 0; i < source.size() && line < d.loc.line; i++) {
@@ -36,7 +35,6 @@ void printDiagnostic(FILE* out, const Diagnostic& d, std::string_view source, co
     std::string expanded;
     for (char c : text) expanded += (c == '\t') ? std::string("    ") : std::string(1, c);
     std::fprintf(out, " %s%s |%s %s\n", color::blue(), num.c_str(), color::reset(), expanded.c_str());
-    // Columna visual (contando tabs como 4 y UTF-8 como 1)
     int visual = 0;
     size_t bytes = 0;
     int target = d.loc.col - 1;
@@ -58,4 +56,4 @@ void printDiagnostic(FILE* out, const Diagnostic& d, std::string_view source, co
     if (!d.hint.empty()) std::fprintf(out, " %s %s= %sayuda:%s %s\n", pad.c_str(), color::blue(), color::green(), color::reset(), d.hint.c_str());
 }
 
-} // namespace hz
+}

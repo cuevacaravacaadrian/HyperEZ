@@ -1,4 +1,3 @@
-// Recursos del instalador (generado por CMake a partir de setup.rc.in)
 #include <winver.h>
 #include "@HZ_SRC@/src/core/version.h"
 

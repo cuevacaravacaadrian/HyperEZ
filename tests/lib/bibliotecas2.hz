@@ -1,4 +1,3 @@
-// Bibliotecas web, html, db y audio.
 import web
 import html
 import db
@@ -45,13 +44,12 @@ test("db: insertar, buscar, cambiar, borrar y guardar", () => {
     assertEqual(j.findOne({ nombre: "Luis" }).puntos, 95)
     assertEqual(j.update({ nombre: "Luis" }, { puntos: 200 }), 1)
     assertEqual(j.delete(x => x.puntos < 125), 1)
-    // otra instancia lee lo guardado
     var otra = db.Database(ruta).collection("jugadores")
     assertEqual(otra.all().map(x => x.nombre).sort(), ["Eva", "Luis"])
     assertEqual(db.Database(ruta).collections, ["jugadores"])
     var copia = otra.findOne({ nombre: "Eva" })
     copia.puntos = 0
-    assertEqual(otra.findOne({ nombre: "Eva" }).puntos, 130) // find devuelve copias
+    assertEqual(otra.findOne({ nombre: "Eva" }).puntos, 130)
     File.delete(ruta)
 })
 

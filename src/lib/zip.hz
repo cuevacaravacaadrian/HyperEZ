@@ -1,18 +1,8 @@
-// zip — crear y leer archivos .zip (compatibles con Windows, macOS, Linux y cualquier programa de zip).
-//
-//   import zip
-//   zip.create("copia.zip", { "notas.txt": "hola", "datos/puntos.json": JSON.stringify([1, 2, 3]) })
-//   zip.createFromFolder("proyecto.zip", "mi-juego")        // toda una carpeta
-//   foreach nombre in zip.list("copia.zip") { print(nombre) }
-//   print(zip.read("copia.zip")["notas.txt"].toText())
-//   zip.extract("copia.zip", "carpeta-destino")
-
 function toBytes(contenido: any): Bytes {
     if typeof(contenido) == "Bytes" { return contenido }
     return Bytes(0).concat(str(contenido))
 }
 
-// Fecha y hora en el formato de MS-DOS que usa zip
 function dosTime(t: number): list {
     var d = Time.date(t)
     var hora = d.hour * 2048 + d.minute * 32 + floor(d.second / 2)
@@ -31,17 +21,15 @@ function create(ruta: text, archivos: map, nivel: number = 8) {
         var comprimido = datos.compress(nivel, true)
         var metodo = 8
         if comprimido.length >= datos.length {
-            comprimido = datos   // no merece la pena: se guarda tal cual
+            comprimido = datos
             metodo = 0
         }
         var crc = Hash.crc32(datos)
         var nombreB = toBytes(str(nombre).replace("\\", "/"))
         var offset = out.length
-        // cabecera local
         out.pushU32(0x04034b50).pushU16(20).pushU16(0x0800).pushU16(metodo).pushU16(hora).pushU16(dia)
         out.pushU32(crc).pushU32(comprimido.length).pushU32(datos.length).pushU16(nombreB.length).pushU16(0)
         out = out.concat(nombreB).concat(comprimido)
-        // entrada del directorio central
         central.pushU32(0x02014b50).pushU16(20).pushU16(20).pushU16(0x0800).pushU16(metodo).pushU16(hora).pushU16(dia)
         central.pushU32(crc).pushU32(comprimido.length).pushU32(datos.length).pushU16(nombreB.length)
         central.pushU16(0).pushU16(0).pushU16(0).pushU16(0).pushU32(0).pushU32(offset)
@@ -58,7 +46,7 @@ function create(ruta: text, archivos: map, nivel: number = 8) {
 /// Crea un .zip con todos los archivos de una carpeta (con sus subcarpetas).
 function createFromFolder(ruta: text, carpeta: text, nivel: number = 8) {
     var archivos = {}
-    foreach rel in File.listAll(carpeta) { // rutas relativas a la carpeta
+    foreach rel in File.listAll(carpeta) {
         var abs = Path.join(carpeta, rel)
         if File.isDir(abs) { continue }
         archivos[rel.replace("\\", "/")] = File.readBytes(abs)
@@ -66,9 +54,7 @@ function createFromFolder(ruta: text, carpeta: text, nivel: number = 8) {
     create(ruta, archivos, nivel)
 }
 
-// Entradas del directorio central: [{name, method, crc, compressedSize, size, offset}]
 function entries(datos: Bytes): list {
-    // el final del directorio central está en los últimos 22 bytes (o antes si hay comentario)
     var fin = -1
     var i = datos.length - 22
     while i >= max(0, datos.length - 65557) {

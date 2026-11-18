@@ -1,26 +1,4 @@
 #!/usr/bin/env python3
-"""Prepara la propuesta de HyperEZ para GitHub Linguist (github-linguist/linguist) en una copia local de Linguist.
-
-Hace lo que pide el CONTRIBUTING.md de Linguist para un lenguaje nuevo, sin Ruby ni Docker:
-
-  1. clona Linguist (o tu fork) y crea la rama `hyperez` desde la última versión de main;
-  2. añade la entrada de `editors/linguist/languages.yml` a `lib/linguist/languages.yml`, en orden alfabético y
-     con su `language_id` (el mismo cálculo que `script/update-ids`);
-  3. copia las muestras de `editors/linguist/samples` a `samples/HyperEZ/`;
-  4. añade la gramática como submódulo (`vendor/grammars/hyperez-grammar`), en `grammars.yml`, en la lista de
-     `vendor/README.md` y con su licencia en `vendor/licenses` (lo que hace `script/add-grammar`);
-  5. lo guarda todo en un commit y, con --push, lo sube a tu fork.
-
-Antes hay que crear en GitHub, a mano, el repositorio público `hyperez-grammar` (con lo que hay en
-editors/linguist/grammar) y el fork de github-linguist/linguist. La pull request se abre después, desde la web,
-con el texto de editors/linguist/PULL_REQUEST.md: Linguist solo acepta lenguajes con uso real en GitHub
-(ver editors/linguist/OBJETIVOS.md y `python tools/linguist_kit.py --progress`).
-
-    python tools/linguist_pr.py                       prepara build-linguist/ (sin subir nada)
-    python tools/linguist_pr.py --push                y lo sube a tu fork (rama hyperez)
-    python tools/linguist_pr.py --dir C:/otra/carpeta  en otra carpeta
-    python tools/linguist_pr.py --usuario OTRO         otro usuario de GitHub (por defecto, el de HYPEREZ_REPO_URL)
-"""
 import argparse
 import hashlib
 import os
@@ -67,16 +45,13 @@ def escribir(p, texto):
 
 
 def language_id(nombre):
-    # script/update-ids: Digest::SHA256.hexdigest(name).to_i(16) % (2**30 - 1)
     return int(hashlib.sha256(nombre.encode()).hexdigest(), 16) % (2 ** 30 - 1)
 
 
 def clave(s):
-    # el orden de las pruebas de Linguist (assert_sorted): el de Ruby, byte a byte (las mayúsculas antes)
     return s.encode("utf-8")
 
 
-# ---------------------------------------------------------------------------- languages.yml
 def anadir_lenguaje(lin):
     ruta = os.path.join(lin, "lib", "linguist", "languages.yml")
     texto = leer(ruta)
@@ -86,7 +61,6 @@ def anadir_lenguaje(lin):
     entrada = [l for l in leer(os.path.join(KIT, "languages.yml")).splitlines() if l and not l.startswith("#")]
     entrada.append("  language_id: %d" % language_id(NOMBRE))
     lineas = texto.split("\n")
-    # las entradas de primer nivel están en orden (el de Ruby: byte a byte)
     pos = None
     for i, l in enumerate(lineas):
         m = re.match(r"^([^\s#][^:]*):\s*$", l)
@@ -100,7 +74,6 @@ def anadir_lenguaje(lin):
     print("  ✓ lib/linguist/languages.yml: %s (language_id %d), antes de %s" % (NOMBRE, language_id(NOMBRE), lineas[pos + len(entrada)].rstrip(":")))
 
 
-# ---------------------------------------------------------------------------- muestras
 def copiar_muestras(lin):
     destino = os.path.join(lin, "samples", NOMBRE)
     os.makedirs(destino, exist_ok=True)
@@ -110,9 +83,7 @@ def copiar_muestras(lin):
     print("  ✓ samples/%s: %s" % (NOMBRE, ", ".join(nombres)))
 
 
-# ---------------------------------------------------------------------------- gramática
 def insertar_bloque(texto, cabecera_re, nuevo_nombre, bloque):
-    """Inserta `bloque` antes del primer bloque cuyo nombre (grupo 1 de cabecera_re) va después en orden alfabético."""
     for m in re.finditer(cabecera_re, texto, re.M):
         if clave(m.group(1)) > clave(nuevo_nombre):
             return texto[:m.start()] + bloque + texto[m.start():]
@@ -127,27 +98,23 @@ def anadir_gramatica(lin, usuario):
         return False
     if not os.path.isdir(os.path.join(lin, sub)):
         git("submodule", "add", "-f", url + ".git", sub, cwd=lin)
-    # .gitmodules en orden (script/sort-submodules): git submodule add lo deja al final
     gm = os.path.join(lin, ".gitmodules")
     texto = leer(gm)
     bloques = re.findall(r'\[submodule "[^"]+"\]\n(?:\t[^\n]*\n)*', texto)
     if "".join(bloques) == texto:
         bloques.sort(key=lambda b: clave(re.match(r'\[submodule "([^"]+)"\]', b).group(1)))
         escribir(gm, "".join(bloques))
-    # grammars.yml
     gy = os.path.join(lin, "grammars.yml")
     texto = leer(gy)
     if sub + ":" not in texto:
         texto = insertar_bloque(texto, r"^vendor/grammars/([^:\n]+):$", "hyperez-grammar", sub + ":\n- source.hyperez\n")
         escribir(gy, texto)
-    # vendor/README.md: la lista de gramáticas por lenguaje
     rd = os.path.join(lin, "vendor", "README.md")
     texto = leer(rd)
     linea = "- **%s:** [%s/hyperez-grammar](%s)\n" % (NOMBRE, usuario, url)
     if linea not in texto:
         texto = insertar_bloque(texto, r"^- \*\*([^*]+):\*\* ", NOMBRE, linea)
         escribir(rd, texto)
-    # la licencia, como la guarda `licensed cache`
     version = git("rev-parse", "HEAD", cwd=os.path.join(lin, sub), capture=True)
     licencia = leer(os.path.join(lin, sub, "LICENSE")).replace("\r\n", "\n").rstrip("\n")
     dep = ("---\nname: hyperez-grammar\nversion: %s\ntype: git_submodule\nhomepage: %s\nlicense: mit\nlicenses:\n"
@@ -157,7 +124,6 @@ def anadir_gramatica(lin, usuario):
     return True
 
 
-# ----------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description="Prepara la propuesta de HyperEZ para GitHub Linguist")
     ap.add_argument("--dir", default=os.path.join(RAIZ, "build-linguist"), help="carpeta de la copia de Linguist")
@@ -166,7 +132,6 @@ def main():
     a = ap.parse_args()
     fork = "https://github.com/%s/linguist.git" % a.usuario
 
-    # el kit, al día (la gramática, las muestras y el texto de la pull request)
     subprocess.run([sys.executable, os.path.join(RAIZ, "tools", "linguist_kit.py")], check=True, stdout=subprocess.DEVNULL)
 
     print("Linguist en %s" % a.dir)

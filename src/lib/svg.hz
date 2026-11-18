@@ -1,14 +1,3 @@
-// svg — dibujos vectoriales y gráficas (barras, líneas, tarta) que se abren en cualquier navegador.
-//
-//   import svg
-//   var d = svg.Drawing(400, 200)
-//   d.rect(10, 10, 120, 80, { fill: "#2f81f7", rx: 8 })
-//   d.circle(250, 60, 40, { fill: "#ffc857" })
-//   d.text(20, 170, "Hecho con HyperEZ", { size: 22 })
-//   d.save("dibujo.svg")
-//
-//   svg.barChart({ ene: 120, feb: 95, mar: 160 }, { title: "Ventas" }).save("ventas.svg")
-
 const PALETTE = ["#2f81f7", "#f0883e", "#3fb950", "#db61a2", "#a371f7", "#d29922", "#39c5cf", "#f85149"]
 
 function esc(t: any): text { return str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;") }

@@ -1,4 +1,3 @@
-// Bibliotecas escritas en HyperEZ: ai, stats, csv, cli y x86.
 import ai
 import stats
 import csv
@@ -20,7 +19,6 @@ test("ai: la red aprende XOR", () => {
 
 test("ai: clasificación con softmax por lotes", () => {
     randomSeed(3)
-    // dos nubes de puntos: clase 0 abajo a la izquierda, clase 1 arriba a la derecha
     var puntos = []
     var clases = []
     repeat 40 {
@@ -96,7 +94,7 @@ test("cli", () => {
     assertEqual(a.options, { salida: "fin.txt", modo: "rapido" })
     assertEqual(a.flags, ["v", "f", "ayuda"])
     assertEqual(cli.progressBar(0.5, 10), "[█████░░░░░]  50%")
-    assertEqual(cli.ask("¿Nombre?", "Ana"), "Ana") // sin teclado devuelve el valor por defecto
+    assertEqual(cli.ask("¿Nombre?", "Ana"), "Ana")
     assertEqual(cli.table([["nombre", "puntos"], ["Ana", 120], ["Luis", 95]]),
                 "nombre  puntos\n------  ------\nAna     120\nLuis    95")
 })
@@ -110,8 +108,6 @@ test("x86: sector de arranque que imprime un mensaje", () => {
     a.label("fin").cli().hlt().jmp("fin")
     a.label("mensaje").db("Hola", 0)
     var codigo = a.build()
-    // ensamblado a mano: xor ax,ax / mov ds,ax / mov si,0x7C16 / lodsb / or al,al / jz +6 /
-    // mov ah,0Eh / int 10h / jmp -11 / cli / hlt / jmp -4 / "Hola" 0
     assertEqual(codigo.toHex(" "), "31 c0 8e d8 be 16 7c ac 08 c0 74 06 b4 0e cd 10 eb f5 fa f4 eb fc 48 6f 6c 61 00")
     var sector = x86.bootSector(a)
     assertEqual(sector.length, 512)

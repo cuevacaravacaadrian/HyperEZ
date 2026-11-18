@@ -3,7 +3,7 @@
 `hyper` (o `hyper repl`) abre una consola donde cada línea se ejecuta al pulsar Intro. Es la forma más rápida de probar una idea, aprender una función o hacer cálculos.
 
 ```text
-HyperEZ 0.8.3 · consola interactiva
+HyperEZ 1.0.0 · consola interactiva
 Escribe código y pulsa Intro. Lo que definas se conserva entre líneas.
 .ayuda muestra los comandos · .salir para terminar
 
@@ -39,6 +39,6 @@ hz> precios.map(p => p * 1.21).map(p => round(p, 2))
 
 ## Desde otros sitios
 
-- **Windows**: menú Inicio → *HyperEZ (consola interactiva)*, o clic derecho en el fondo de una carpeta → *Abrir HyperEZ aquí*.
+- **Windows**: *Win+R → hyper*, o clic derecho en el fondo de una carpeta → *Abrir HyperEZ aquí*.
 - **VS Code**: *HyperEZ: Abrir consola interactiva*.
 - **Con una tubería**: `echo "2 ** 10" | hyper repl` imprime `1024` (útil en scripts).

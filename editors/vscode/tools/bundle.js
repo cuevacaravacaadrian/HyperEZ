@@ -1,5 +1,3 @@
-// Empaqueta extension.js y sus dependencias (vscode-languageclient) en dist/extension.js.
-//   node tools/bundle.js
 'use strict';
 const path = require('path');
 require('esbuild').buildSync({

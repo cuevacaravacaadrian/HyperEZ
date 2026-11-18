@@ -1,6 +1,3 @@
-// Adivina el número: el ordenador piensa un número del 1 al 100 y te dice si es mayor o menor.
-// Sin consola interactiva, juega solo usando búsqueda binaria.
-
 const DEMO = not Console.interactive
 if DEMO { randomSeed(3) }
 

@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://cuevacaravacaadrian.github.io/HyperEZ/"><img src="https://img.shields.io/badge/web-HyperEZ-62d962" alt="La web de HyperEZ"></a>
   <a href="https://marketplace.visualstudio.com/items?itemName=hyperez.hyperezprogramminglanguagevscodeextension"><img src="https://vsmarketplacebadges.dev/installs-short/hyperez.hyperezprogramminglanguagevscodeextension.svg?label=instalaciones&color=2f81f7" alt="Instalaciones"></a>
   <a href="https://github.com/cuevacaravacaadrian/HyperEZ/releases/latest"><img src="https://img.shields.io/github/v/release/cuevacaravacaadrian/HyperEZ?label=HyperEZ&color=e8572a" alt="Última versión"></a>
   <img src="https://img.shields.io/badge/idioma-espa%C3%B1ol-c8102e" alt="En español">
@@ -18,7 +17,7 @@
 
 > En Windows no necesitas instalar nada más: la extensión trae `hyper.exe`. Abre o crea un archivo `.hez` y pulsa **F5**.
 >
-> ¿Sin instalar nada? Prueba HyperEZ en el **[editor del navegador](https://cuevacaravacaadrian.github.io/HyperEZ/editor/index.html)**. Todo lo demás está en **[la web de HyperEZ](https://cuevacaravacaadrian.github.io/HyperEZ/)**.
+> La documentación completa está en el **[repositorio de HyperEZ](https://github.com/cuevacaravacaadrian/HyperEZ)**.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/cuevacaravacaadrian/HyperEZ/main/docs/img/vscode-ejecutar.png" alt="Un programa de HyperEZ en VS Code con el tema HyperEZ Noche, los botones Ejecutar, Repetir al guardar y Comprobar, y su resultado en la terminal" width="92%">
@@ -143,7 +142,6 @@ print(red.predict([1, 0]).get(0, 0))           // ≈ 1
 
 ## 💻 Más allá de VS Code
 
-- **[La web de HyperEZ](https://cuevacaravacaadrian.github.io/HyperEZ/)**: documentación, descargas, ejemplos y el **editor en el navegador** (sin instalar nada).
 - **Instalador para Windows** con el lenguaje, **HyperEZ Editor** (un editor clásico con pestañas, panel de salida e impresión), ejemplos y la documentación en HTML: [descargar](https://github.com/cuevacaravacaadrian/HyperEZ/releases/latest).
 - **Linux y macOS**: un paquete con `sh install.sh`.
 - **Otros editores**: colores para Notepad++, Sublime Text, Vim/Neovim y highlight.js, y `hyper lsp` para cualquier editor con servidor de lenguaje.

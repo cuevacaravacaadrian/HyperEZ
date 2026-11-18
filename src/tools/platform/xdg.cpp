@@ -1,5 +1,3 @@
-// Linux y otros escritorios freedesktop: asociación de .hz/.hez con HyperEZ (hyper register).
-// Todo va en la carpeta del usuario (~/.local/share): no necesita permisos de administrador.
 #if !defined(_WIN32) && !defined(__APPLE__)
 #include "tools/tools.h"
 
@@ -15,7 +13,7 @@ static std::string dataHome() {
 
 static void quiet(const std::vector<std::string>& argv) {
     ProcessOptions o;
-    runCapture(argv, o); // si la herramienta no existe no pasa nada
+    runCapture(argv, o);
 }
 
 bool registerFileTypes(const std::string& hyperExe, bool install) {
@@ -57,7 +55,6 @@ bool registerFileTypes(const std::string& hyperExe, bool install) {
         "MimeType=text/x-hyperez;\n"
         "Categories=Development;\n"
         "NoDisplay=false\n") && ok;
-    // Icono: share/hyperez/hyperez.png junto a la instalación (bin/../share/hyperez)
     std::string bundled = pathJoin(pathDir(pathDir(hyperExe)), "share/hyperez/hyperez.png");
     std::string png;
     if (readFile(bundled, png)) {
@@ -74,5 +71,5 @@ bool registerFileTypes(const std::string& hyperExe, bool install) {
     return ok;
 }
 
-} // namespace hz
+}
 #endif

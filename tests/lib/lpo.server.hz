@@ -1,0 +1,73 @@
+test("jerarquía de instancias", () => {
+    var modelo = Model(workspace)
+    modelo.name = "Casa"
+    var pared = Part(modelo)
+    pared.name = "Pared"
+    assertEqual(pared.parent, modelo)
+    assertEqual(modelo.find("Pared"), pared)
+    assertEqual(workspace.findDescendant("Pared"), pared)
+    assertEqual(pared.getFullName(), "Workspace.Casa.Pared")
+    assert(pared.isA("BasePart"))
+    assert(pared.isA("Instance"))
+    assert(not pared.isA("Model"))
+    assert(pared.isDescendantOf(workspace))
+    assertEqual(pared.findAncestorOfClass("Model"), modelo)
+    var copia = modelo.clone()
+    assertEqual(copia.parent, null)
+    assertEqual(copia.find("Pared").className, "Part")
+    modelo.destroy()
+    assertEqual(workspace.find("Casa"), null)
+    assertEqual(pared.parent, null)
+})
+
+test("eventos de instancia", () => {
+    var carpeta = Folder(workspace)
+    var añadidos = []
+    on carpeta.childAdded as e { añadidos.add(e.child.name) }
+    var a = StringValue(carpeta)
+    a.name = "uno"
+    var b = carpeta.create("NumberValue", carpeta)
+    assertEqual(len(añadidos), 2)
+    assertEqual(b.className, "NumberValue")
+    assertThrows(() => carpeta.create("NoExiste"))
+    assertThrows(() => { carpeta.parent = a })
+})
+
+test("Humanoid y daño", () => {
+    var h = Humanoid(Model(workspace))
+    var murio = false
+    on h.died as e { murio = true }
+    h.takeDamage(60)
+    assertEqual(h.health, 40)
+    h.takeDamage(60)
+    assertEqual(h.health, 0)
+    assert(murio)
+})
+
+test("servicios y jugadores", () => {
+    assertEqual(game.getService("Players"), game.players)
+    assertEqual(workspace.className, "Workspace")
+    var entradas = []
+    on game.players.playerAdded as e { entradas.add(e.player.name) }
+    var p = game.players.join("Eva")
+    assert(entradas.contains("Eva"))
+    assert(game.players.getPlayers().contains(p))
+    game.players.leave(p)
+    assert(not game.players.getPlayers().contains(p))
+})
+
+test("Tween, Input, DataStore y enumeraciones", async () => {
+    var bloque = Part(workspace)
+    await Tween.to(bloque, {transparency: 1, position: Vec3(0, 10, 0)}, 0.1, "bounceOut")
+    assertEqual(bloque.transparency, 1)
+    assertEqual(bloque.position, Vec3(0, 10, 0))
+    Input.press("E")
+    assert(Input.isKeyDown("E"))
+    Input.release("E")
+    assert(not Input.isKeyDown("E"))
+    DataStore.set("record", 42)
+    assertEqual(DataStore.get("record"), 42)
+    assertEqual(DataStore.get("nada", 7), 7)
+    assertEqual(Material.Neon, "Neon")
+    assertEqual(PartShape.Ball, "Ball")
+})

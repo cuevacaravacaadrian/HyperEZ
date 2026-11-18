@@ -1,0 +1,23 @@
+import ReplicatedStorage.Config
+
+var puerta = Part(workspace)
+puerta.name = "Puerta"
+puerta.anchored = true
+puerta.position = Vec3(0, 5, 0)
+var detector = ClickDetector(puerta)
+var cerrada = puerta.position
+var abierta = cerrada + Vec3(0, 10, 0)
+var estaAbierta = false
+
+on detector.mouseClick as e {
+    estaAbierta = not estaAbierta
+    var destino = estaAbierta ? abierta : cerrada
+    await Tween.to(puerta, {position: destino}, Config.VELOCIDAD_PUERTA, "sineInOut")
+    print("${e.player.name} ${estaAbierta ? "abre" : "cierra"} la puerta: y = ${round(puerta.position.y)}")
+}
+
+var jugador = game.players.join("Ana")
+detector.simulateClick(jugador)
+await wait(0.5)
+detector.simulateClick(jugador)
+await wait(0.5)

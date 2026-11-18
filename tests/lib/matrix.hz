@@ -1,5 +1,3 @@
-// Matrix y sobrecarga de operadores.
-
 test("crear y leer", () => {
     var a = Matrix([[1, 2, 3], [4, 5, 6]])
     assertEqual([a.rows, a.cols, a.size], [2, 3, 6])
@@ -56,7 +54,6 @@ test("aleatorias con semilla", () => {
     assert(a.max() <= 1 and a.min() >= -1)
 })
 
-// Sobrecarga de operadores en una clase propia
 class Fraccion {
     var n: number
     var d: number

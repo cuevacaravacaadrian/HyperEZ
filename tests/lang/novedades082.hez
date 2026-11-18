@@ -1,10 +1,8 @@
-// Arreglos de la 0.8.2
-
 function clasificar(n: number, limite: number): text {
     return match n {
-        _ if n < limite => "menor",       // antes "limite => ..." se leía como una función
-        limite => "igual",                // un nombre como patrón
-        _ if (n > limite * 2) => "doble", // la guarda entre paréntesis
+        _ if n < limite => "menor",
+        limite => "igual",
+        _ if (n > limite * 2) => "doble",
         _ => "mayor",
     }
 }

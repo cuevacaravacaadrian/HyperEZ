@@ -1,14 +1,3 @@
-// log — mensajes de registro con niveles, hora y colores; opcionalmente también a un archivo.
-//
-//   import log
-//   var registro = log.Logger("servidor")             // nivel "info" por defecto
-//   registro.info("Arrancando en el puerto 8080")
-//   registro.warn("Queda poco espacio")
-//   registro.error("No se pudo abrir la base de datos")
-//   registro.debug("no se ve: el nivel es info")
-//
-//   var archivo = log.Logger("juego", "debug", "registro.txt")  // también escribe en registro.txt
-
 const LEVELS = ["debug", "info", "warn", "error"]
 const COLORS = { debug: "gray", info: "cyan", warn: "yellow", error: "red" }
 const LABELS = { debug: "DEPURA", info: "INFO", warn: "AVISO", error: "ERROR" }

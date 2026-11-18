@@ -8,8 +8,6 @@ namespace hz {
 static ObjVec* V(Value* args) { return static_cast<ObjVec*>(args[-1].o); }
 #define NATIVE(name) static Value name(VM& vm, int argc, Value* args)
 
-// ---- Colores ---------------------------------------------------------------
-
 static const struct { const char* name; uint8_t r, g, b, a; } kColors[] = {
     {"white", 255, 255, 255, 255}, {"black", 0, 0, 0, 255}, {"red", 230, 41, 55, 255}, {"green", 0, 228, 48, 255},
     {"blue", 0, 121, 241, 255}, {"yellow", 253, 249, 0, 255}, {"orange", 255, 161, 0, 255}, {"purple", 200, 122, 255, 255},
@@ -64,8 +62,6 @@ Value makeColor(VM& vm, RGBA c) {
     return Value::object(vm.newVec(VK_COLOR, std::round(c.r * 255), std::round(c.g * 255), std::round(c.b * 255), std::round(c.a * 255)));
 }
 
-// ---- Constructores -----------------------------------------------------------
-
 NATIVE(c_vec2) { return Value::object(vm.newVec(VK_VEC2, argNum(vm, args, argc, 0, "Vec2", 0), argNum(vm, args, argc, 1, "Vec2", 0))); }
 NATIVE(c_vec3) { return Value::object(vm.newVec(VK_VEC3, argNum(vm, args, argc, 0, "Vec3", 0), argNum(vm, args, argc, 1, "Vec3", 0), argNum(vm, args, argc, 2, "Vec3", 0))); }
 NATIVE(c_color) {
@@ -73,8 +69,6 @@ NATIVE(c_color) {
     return Value::object(vm.newVec(VK_COLOR, argNum(vm, args, argc, 0, "Color", 255), argNum(vm, args, argc, 1, "Color", 255),
                                    argNum(vm, args, argc, 2, "Color", 255), argNum(vm, args, argc, 3, "Color", 255)));
 }
-
-// ---- Métodos de vectores ------------------------------------------------------------
 
 static int dims(ObjVec* v) { return v->kind == VK_COLOR ? 4 : v->dims(); }
 static double len(ObjVec* v) { double s = 0; for (int i = 0; i < dims(v); i++) s += v->v[i] * v->v[i]; return std::sqrt(s); }
@@ -152,7 +146,6 @@ NATIVE(v_moveTowards) {
     return Value::object(r);
 }
 
-// Constantes estáticas (objetos nuevos en cada acceso: son mutables)
 #define VSTATIC(name, kind, x, y, z) NATIVE(name) { (void)argc; (void)args; return Value::object(vm.newVec(kind, x, y, z)); }
 VSTATIC(v2_zero, VK_VEC2, 0, 0, 0)
 VSTATIC(v2_one, VK_VEC2, 1, 1, 0)
@@ -173,7 +166,6 @@ NATIVE(v2_fromAngle) {
     return Value::object(vm.newVec(VK_VEC2, std::cos(a) * l, std::sin(a) * l));
 }
 
-// Colores
 NATIVE(col_hex) { return makeColor(vm, toColor(vm, vm.str(argStr(vm, args, argc, 0, "Color.hex")), "Color.hex")); }
 NATIVE(col_rgb) {
     return Value::object(vm.newVec(VK_COLOR, argNum(vm, args, argc, 0, "Color.rgb"), argNum(vm, args, argc, 1, "Color.rgb"),
@@ -230,7 +222,6 @@ void registerMathTypes(VM& vm) {
                                    "(r?: number|text|list = 255, g?: number = 255, b?: number = 255, a?: number = 255)");
     col->vecKind = VK_COLOR;
     vm.vecClass[VK_COLOR] = col;
-    // Vec4 y Quat se crean internamente (sin constructor público todavía)
     vm.vecClass[VK_VEC4] = vm.newClass("Vec4");
     vm.vecClass[VK_VEC4]->isNative = true;
     vm.vecClass[VK_QUAT] = vm.newClass("Quat");
@@ -291,4 +282,4 @@ void registerMathTypes(VM& vm) {
     vm.defineLibrary("HyperMath", {"Vec2", "Vec3", "Color"}, "Vectores, colores y funciones matemáticas.");
 }
 
-} // namespace hz
+}

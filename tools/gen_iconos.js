@@ -1,9 +1,3 @@
-// Iconos de las carpetas y archivos de HyperEZ (los mismos en VS Code, HyperEZ Editor y el editor web).
-//
-//   node tools/gen_iconos.js           escribe los SVG (assets/icons/tema) y el tema de iconos de VS Code
-//   node tools/gen_iconos.js --ico     además, los .ico de HyperEZ Editor (los dibuja Chrome: el mismo resultado)
-//
-// Cada carpeta de un proyecto HyperEZ (docs/herramientas/proyectos.md) tiene su color y su símbolo.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +6,6 @@ const RAIZ = path.join(__dirname, '..');
 const SALIDA = path.join(RAIZ, 'assets', 'icons', 'tema');
 const VSCODE = path.join(RAIZ, 'editors', 'vscode', 'icons');
 
-// ---- carpetas: nombre → [color, color oscuro, símbolo (en blanco, en una rejilla de 32), descripción] ----
 const GEAR = (cx, cy, fondo) => `<g transform="translate(${cx} ${cy})"><path fill="#fff" d="M-1.1-5.6h2.2l.4 1.6 1.2.5 1.4-.9 1.6 1.6-.9 1.4.5 1.2 1.6.4v2.2l-1.6.4-.5 1.2.9 1.4-1.6 1.6-1.4-.9-1.2.5-.4 1.6h-2.2l-.4-1.6-1.2-.5-1.4.9-1.6-1.6.9-1.4-.5-1.2-1.6-.4v-2.2l1.6-.4.5-1.2-.9-1.4 1.6-1.6 1.4.9 1.2-.5z"/><circle r="1.8" fill="${fondo}"/></g>`;
 const L = 'fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"';
 const CARPETAS = {
@@ -39,7 +32,6 @@ function carpetaSvg(nombre, abierta) {
   return fondo + frente + dentro;
 }
 
-// ---- archivos ----
 const ARCHIVOS = {
   archivo: '<path fill="#f3f4f6" stroke="#8c959f" stroke-width="1.2" d="M8 3.5h10.5L25 10v17.5c0 .6-.4 1-1 1H8c-.6 0-1-.4-1-1v-23c0-.6.4-1 1-1z"/><path fill="none" stroke="#8c959f" stroke-width="1.2" d="M18.5 3.5V10H25"/>',
   hez: '<rect x="3" y="3" width="26" height="26" rx="6" fill="#111"/><path fill="#62d962" d="M9.5 8.5h3.6v5.6h5.8V8.5h3.6v15h-3.6v-5.8h-5.8v5.8H9.5z"/>',
@@ -68,7 +60,6 @@ function iconos() {
 function escribirSvg(lista) {
   fs.mkdirSync(SALIDA, { recursive: true });
   for (const [n, cuerpo] of Object.entries(lista)) fs.writeFileSync(path.join(SALIDA, n + '.svg'), svg(cuerpo));
-  // el tema de iconos de VS Code ("Tema de iconos de archivo: HyperEZ")
   const temaDir = path.join(VSCODE, 'tema');
   fs.mkdirSync(temaDir, { recursive: true });
   for (const f of fs.readdirSync(temaDir)) if (f.endsWith('.svg')) fs.unlinkSync(path.join(temaDir, f));
@@ -87,17 +78,9 @@ function escribirSvg(lista) {
     hidesExplorerArrows: false,
   };
   fs.writeFileSync(path.join(VSCODE, 'hyperez-iconos.json'), JSON.stringify(tema, null, 2) + '\n');
-  // lo que necesitan el editor web y HyperEZ Editor: qué carpeta y qué archivo lleva cada icono
-  const mapa = { carpetas: especiales, extensiones: EXTENSIONES, nombres: { 'proyecto.json': 'proyecto' }, descripciones: Object.fromEntries(Object.entries(CARPETAS).map(([n, v]) => [n, v[3]])) };
-  fs.writeFileSync(path.join(SALIDA, 'tema.json'), JSON.stringify(mapa, null, 2) + '\n');
-  // el editor del navegador: todos en un solo SVG (<symbol id="t-...">), que la web mete en editor/index.html
-  const sprite = '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true"><defs>' +
-    Object.entries(lista).map(([n, c]) => `<symbol id="t-${n}" viewBox="0 0 32 32">${c}</symbol>`).join('') + '</defs></svg>\n';
-  fs.writeFileSync(path.join(SALIDA, 'sprite.svg'), sprite);
   console.log(`✓ ${Object.keys(lista).length} iconos en ${path.relative(RAIZ, SALIDA)} y el tema de VS Code (${path.relative(RAIZ, path.join(VSCODE, 'hyperez-iconos.json'))})`);
 }
 
-// ---- .ico para HyperEZ Editor: Chrome dibuja cada SVG a cada tamaño (PNG dentro del .ico) ----
 async function escribirIco(lista) {
   const { spawn } = require('child_process');
   const os = require('os');
@@ -110,7 +93,7 @@ async function escribirIco(lista) {
   const proc = spawn(chrome, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${puerto}`, `--user-data-dir=${perfil}`, '--window-size=800,800', 'about:blank'], { stdio: 'ignore' });
   const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   let objetivo = null;
-  for (let i = 0; i < 60 && !objetivo; i++) { await esperar(250); try { objetivo = (await (await fetch(`http://127.0.0.1:${puerto}/json`)).json()).find((t) => t.type === 'page'); } catch (e) { /* aún no */ } }
+  for (let i = 0; i < 60 && !objetivo; i++) { await esperar(250); try { objetivo = (await (await fetch(`http://127.0.0.1:${puerto}/json`)).json()).find((t) => t.type === 'page'); } catch (e) {  } }
   const ws = new WebSocket(objetivo.webSocketDebuggerUrl);
   await new Promise((r) => { ws.onopen = r; });
   let id = 0;
@@ -131,7 +114,6 @@ async function escribirIco(lista) {
       const r = await cdp('Page.captureScreenshot', { format: 'png', clip: { x: k * 60, y: 0, width: t, height: t, scale: 1 } });
       pngs.push({ t, data: Buffer.from(r.data, 'base64') });
     }
-    // .ico con imágenes PNG (Windows Vista o posterior)
     const cab = Buffer.alloc(6 + 16 * pngs.length);
     cab.writeUInt16LE(0, 0); cab.writeUInt16LE(1, 2); cab.writeUInt16LE(pngs.length, 4);
     let off = cab.length;

@@ -1,4 +1,3 @@
-# Instalador de Windows: HyperEZ-Setup-<versión>.exe
 add_executable(hzpack pack.cpp)
 
 add_executable(mkicon ../icons/mkicon.cpp)
@@ -15,7 +14,6 @@ file(GLOB_RECURSE HZ_STAGE_INPUTS CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/examples/* ${CMAKE_SOURCE_DIR}/docs/*.md ${CMAKE_SOURCE_DIR}/docs/img/* ${CMAKE_SOURCE_DIR}/editors/vscode/*.vsix
   ${CMAKE_SOURCE_DIR}/tools/docs_html.hz ${CMAKE_SOURCE_DIR}/tools/docs_menu.hz ${CMAKE_SOURCE_DIR}/src/lib/*.hz ${CMAKE_SOURCE_DIR}/editors/README.md)
 
-# HyperEZ Editor va en el paquete si se construye (opción HYPEREZ_EDITOR)
 set(HZ_EDITOR_ARG "")
 set(HZ_EDITOR_DEP "")
 if(TARGET hyperez-editor)
@@ -36,11 +34,10 @@ configure_file(setup.rc.in ${CMAKE_BINARY_DIR}/setup.rc @ONLY)
 set_source_files_properties(${CMAKE_BINARY_DIR}/setup.rc PROPERTIES OBJECT_DEPENDS
   "${HZ_PAYLOAD};${CMAKE_CURRENT_SOURCE_DIR}/setup.manifest;${CMAKE_SOURCE_DIR}/src/core/version.h")
 
-add_executable(setup WIN32 setup.cpp ${CMAKE_SOURCE_DIR}/src/tools/platform/winshell.cpp ${CMAKE_BINARY_DIR}/setup.rc)
+add_executable(setup WIN32 setup.cpp ${CMAKE_SOURCE_DIR}/src/tools/platform/winshell.cpp ${CMAKE_SOURCE_DIR}/src/tools/platform/editors.cpp ${CMAKE_BINARY_DIR}/setup.rc)
 add_dependencies(setup payload)
 target_include_directories(setup PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(setup PRIVATE UNICODE _UNICODE)
-# Identificador de la extensión de VS Code (<publisher>.<name> de package.json), para instalarla y desinstalarla
 set(HZ_VSCODE_PACKAGE ${CMAKE_SOURCE_DIR}/editors/vscode/package.json)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${HZ_VSCODE_PACKAGE})
 file(READ ${HZ_VSCODE_PACKAGE} HZ_VSCODE_JSON)

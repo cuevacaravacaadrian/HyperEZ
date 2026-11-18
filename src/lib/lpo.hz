@@ -1,0 +1,2517 @@
+/// LPO Engine para HyperEZ: todas las clases, servicios y objetos globales del motor.
+/// Fuera del motor funciona como simulación sin gráficos: sirve para probar la lógica de un juego con hyper test.
+
+fn _lpoIsA(obj: any, className: text): bool {
+    var c = obj.className
+    while c != null {
+        if c == className { return true }
+        c = _LPO_PARENTS.get(c)
+    }
+    return false
+}
+
+fn _lpoEase(name: text, t: number): number {
+    return match name {
+        "linear" => t
+        "quadIn" => t * t
+        "quadOut" => 1 - (1 - t) * (1 - t)
+        "quadInOut" => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
+        "cubicOut" => 1 - (1 - t) ** 3
+        "sineInOut" => -(cos(PI * t) - 1) / 2
+        "backOut" => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2
+        "bounceOut" => _lpoBounce(t)
+        "elasticOut" => t == 0 or t == 1 ? t : 2 ** (-10 * t) * sin((t * 10 - 0.75) * (2 * PI / 3)) + 1
+        else => t
+    }
+}
+
+fn _lpoBounce(t: number): number {
+    if t < 1 / 2.75 { return 7.5625 * t * t }
+    if t < 2 / 2.75 { var u = t - 1.5 / 2.75; return 7.5625 * u * u + 0.75 }
+    if t < 2.5 / 2.75 { var u = t - 2.25 / 2.75; return 7.5625 * u * u + 0.9375 }
+    var u = t - 2.625 / 2.75
+    return 7.5625 * u * u + 0.984375
+}
+
+fn _lpoLerp(a: any, b: any, f: number): any {
+    if a is number and b is number { return a + (b - a) * f }
+    if a is Color and b is Color {
+        return Color(round(a.r + (b.r - a.r) * f), round(a.g + (b.g - a.g) * f), round(a.b + (b.b - a.b) * f), round(a.a + (b.a - a.a) * f))
+    }
+    if (a is Vec2 and b is Vec2) or (a is Vec3 and b is Vec3) { return a + (b - a) * f }
+    return f < 1 ? a : b
+}
+
+fn _lpoPoint(p: any): any { return p is Vec2 or p is Vec3 ? p : p.position }
+
+/// Objeto base de la jerarquía de LPO Engine: todo lo que hay en un juego es una instancia.
+class Instance {
+    /// Nombre de la instancia.
+    var name: text = ""
+    private var _parent: any = null
+    private var _children: list = []
+    private var _attributes: map = {}
+    private var _destroyed: bool = false
+    /// Se añadió un hijo directo.
+    event childAdded(child: any)
+    /// Se quitó un hijo directo.
+    event childRemoved(child: any)
+    /// Cambió una propiedad (recibe su nombre).
+    event changed(property: text)
+    /// La instancia va a destruirse.
+    event destroying()
+
+    constructor(parent: any = null) {
+        name = typeof(this)
+        if parent != null { this.parent = parent }
+    }
+
+    /// Nombre de la clase.
+    get className(): text { return typeof(this) }
+
+    /// Padre (asigna otra instancia para moverla; null para sacarla del juego).
+    get parent(): any { return _parent }
+    set parent(nuevo: any) {
+        if nuevo == _parent { return }
+        if _destroyed { throw Error("${name}: la instancia está destruida") }
+        if nuevo != null and (nuevo == this or nuevo.isDescendantOf(this)) { throw Error("${name}: no puede ser hija de sí misma") }
+        var anterior = _parent
+        _parent = nuevo
+        if anterior != null { anterior._quitarHijo(this) }
+        if nuevo != null { nuevo._ponerHijo(this) }
+        emit changed("parent")
+    }
+
+    fn _ponerHijo(hijo: any) {
+        _children.add(hijo)
+        emit childAdded(hijo)
+    }
+
+    fn _quitarHijo(hijo: any) {
+        _children.remove(hijo)
+        emit childRemoved(hijo)
+    }
+
+    /// Hijo directo con ese nombre (o null).
+    fn find(name: text): any { return _children.find(c => c.name == name) }
+
+    /// Primer descendiente con ese nombre (o null).
+    fn findDescendant(name: text): any {
+        foreach c in _children {
+            if c.name == name { return c }
+            var d = c.findDescendant(name)
+            if d != null { return d }
+        }
+        return null
+    }
+
+    /// Primer hijo de esa clase (o null).
+    fn findChildOfClass(className: text): any { return _children.find(c => c.isA(className)) }
+
+    /// Primer antepasado de esa clase (o null).
+    fn findAncestorOfClass(className: text): any {
+        var p = _parent
+        while p != null {
+            if p.isA(className) { return p }
+            p = p.parent
+        }
+        return null
+    }
+
+    /// Tarea que termina cuando existe el hijo (úsala con await). Devuelve null si se acaba el tiempo.
+    async fn waitForChild(name: text, timeout: number = 10): any {
+        var inicio = time()
+        loop {
+            var c = find(name)
+            if c != null { return c }
+            if time() - inicio >= timeout { return null }
+            await nextFrame()
+        }
+    }
+
+    /// Lista de los hijos directos.
+    fn children(): list { return _children.copy() }
+
+    /// Lista de todos los descendientes.
+    fn descendants(): list {
+        var todos = []
+        foreach c in _children {
+            todos.add(c)
+            todos.add(...c.descendants())
+        }
+        return todos
+    }
+
+    /// ¿Es de esa clase o de una derivada?
+    fn isA(className: text): bool { return _lpoIsA(this, className) }
+
+    /// ¿Está dentro de 'other'?
+    fn isDescendantOf(other: any): bool {
+        var p = _parent
+        while p != null {
+            if p == other { return true }
+            p = p.parent
+        }
+        return false
+    }
+
+    /// Copia (sin padre), con sus hijos y atributos.
+    fn clone(): any {
+        var copia = _lpoCreate(className)
+        copia.name = name
+        foreach k in _attributes.keys() { copia.setAttribute(k, _attributes[k]) }
+        foreach c in _children { c.clone().parent = copia }
+        return copia
+    }
+
+    /// Destruye la instancia y sus hijos.
+    fn destroy() {
+        if _destroyed { return }
+        emit destroying()
+        clearChildren()
+        parent = null
+        _destroyed = true
+    }
+
+    /// Destruye todos los hijos.
+    fn clearChildren() {
+        foreach c in _children.copy() { c.destroy() }
+    }
+
+    /// Atributo personalizado (o null).
+    fn getAttribute(name: text): any { return _attributes.get(name) }
+
+    /// Guarda un atributo personalizado.
+    fn setAttribute(name: text, value: any) {
+        _attributes[name] = value
+        emit changed(name)
+    }
+
+    /// Ruta completa: Workspace.Model.Part.
+    fn getFullName(): text {
+        var partes = [name]
+        var p = _parent
+        while p != null and p.className != "DataModel" {
+            partes.insert(0, p.name)
+            p = p.parent
+        }
+        return partes.join(".")
+    }
+
+    /// Crea una instancia a partir del nombre de su clase.
+    fn create(className: text, parent: any = null): any {
+        var nueva = _lpoCreate(className)
+        if parent != null { nueva.parent = parent }
+        return nueva
+    }
+
+    fn toString(): text { return name }
+}
+
+/// The game root ('game'). It contains every service.
+class DataModel extends Instance {
+    /// Service by name ("Players", "Lighting"...).
+    fn getService(name: text): any { return find(name) }
+
+    /// The service Workspace.
+    var workspace: any = null
+
+    /// The service Workspace2D.
+    var workspace2D: any = null
+
+    /// The service Lighting.
+    var lighting: any = null
+
+    /// The service Players.
+    var players: any = null
+
+    /// The service ReplicatedStorage.
+    var replicatedStorage: any = null
+
+    /// The service ServerStorage.
+    var serverStorage: any = null
+
+    /// The service ServerScriptService.
+    var serverScriptService: any = null
+
+    /// The service StarterGui.
+    var starterGui: any = null
+
+    /// The service StarterPlayer.
+    var starterPlayer: any = null
+
+    /// The service SoundService.
+    var soundService: any = null
+
+    /// The service Teams.
+    var teams: any = null
+
+    constructor() {
+        super(null)
+        name = "Game"
+        workspace = Workspace(this)
+        workspace2D = Workspace2D(this)
+        lighting = Lighting(this)
+        players = Players(this)
+        replicatedStorage = ReplicatedStorage(this)
+        serverStorage = ServerStorage(this)
+        serverScriptService = ServerScriptService(this)
+        starterGui = StarterGui(this)
+        starterPlayer = StarterPlayer(this)
+        soundService = SoundService(this)
+        teams = Teams(this)
+        Players.current = players
+    }
+}
+
+/// The 3D world: everything inside is visible and has physics.
+class Workspace extends Instance {
+    /// Gravity in studs/s² (196.2 by default).
+    var gravity: number = 196.2
+
+    /// Parts falling below this height are destroyed.
+    var fallenPartsDestroyHeight: number = 0
+
+    /// Active camera.
+    var currentCamera: any = null
+
+    /// Casts a ray (its length is that of 'direction'). Returns {instance, position, normal, distance} or null.
+    fn raycast(origin: Vec3, direction: Vec3, ignore: any = null): map? { return null }
+}
+
+/// The 2D world: sprites and text with 2D physics (Box2D). Coordinates in pixels, Y pointing down.
+class Workspace2D extends Instance {
+    /// 2D gravity in pixels/s².
+    var gravity: Vec2 = Vec2(0, 0)
+
+    /// Background colour of the 2D scene.
+    var backgroundColor: Color = Color(255, 255, 255)
+
+    /// How it blends with the 3D world.
+    var renderMode: text = ""
+
+    /// 2D camera centre.
+    var cameraPosition: Vec2 = Vec2(0, 0)
+
+    /// 2D camera zoom.
+    var cameraZoom: number = 0
+
+    /// Sprite the camera follows (optional).
+    var cameraTarget: any = null
+
+    /// 2D physics scale.
+    var pixelsPerMeter: number = 0
+
+    /// Internal game resolution (0 = the window size). Pixel art: 320x180, 480x270, 640x360.
+    var virtualResolution: Vec2 = Vec2(0, 0)
+
+    /// Integer scaling without smoothing (crisp pixel art).
+    var pixelPerfect: bool = false
+
+    /// Filtering of images with filter = Auto.
+    var defaultFilter: text = ""
+
+    /// 2D ambient light (white = no darkness; darker = Light2D stands out).
+    var ambientColor: Color = Color(255, 255, 255)
+
+    /// Glow of bright things (emission, particles, lights).
+    var bloom: bool = false
+
+    /// Glow strength.
+    var bloomIntensity: number = 0
+
+    /// Brightness above which it glows.
+    var bloomThreshold: number = 0
+
+    /// Darkens the edges.
+    var vignette: number = 0
+
+    /// Colour separation at the edges.
+    var chromaticAberration: number = 0
+
+    /// Old TV scanlines (CRT).
+    var scanlines: number = 0
+
+    /// Film grain.
+    var grain: number = 0
+
+    /// Pixelate the image (pixel size; 0 = off).
+    var pixelate: number = 0
+
+    /// Brillo general.
+    var exposure: number = 0
+
+    /// Contraste (1 = neutro).
+    var contrast: number = 0
+
+    /// Saturation (0 = black and white).
+    var saturation: number = 0
+
+    /// Tint of the whole image.
+    var tint: Color = Color(255, 255, 255)
+
+    /// With pixelPerfect: the camera slides in screen pixels even when the art uses big pixels (no stutter while moving).
+    var smoothScroll: bool = false
+
+    /// 2D time speed (physics, animations and particles): 0.3 = slow motion, 0 = frozen.
+    var timeScale: number = 0
+
+    /// Screen flash colour (World2D.flash).
+    var flashColor: Color = Color(255, 255, 255)
+
+    /// Full-screen flash (0..1).
+    var flashAmount: number = 0
+
+    /// Fade colour (World2D.fadeOut / fadeIn).
+    var fadeColor: Color = Color(255, 255, 255)
+
+    /// Fundido a fadeColor (0..1): transiciones.
+    var fadeAmount: number = 0
+
+    /// 2D ray (its length is that of 'direction'). Returns {instance, position, normal, distance} or null.
+    fn raycast(origin: Vec2, direction: Vec2, ignore: any = null): map? { return null }
+
+    /// Objects with 2D physics at a point.
+    fn overlapPoint(point: Vec2): list { return [] }
+}
+
+/// Lighting, sky, fog and time of day.
+class Lighting extends Instance {
+    /// Ambient light (shaded areas).
+    var ambient: Color = Color(255, 255, 255)
+
+    /// Sun intensity.
+    var brightness: number = 0
+
+    /// Time of day (0-24): moves the sun.
+    var clockTime: number = 0
+
+    /// Sky colour at the top.
+    var skyTopColor: Color = Color(255, 255, 255)
+
+    /// Horizon colour.
+    var skyHorizonColor: Color = Color(255, 255, 255)
+
+    /// Sunlight colour.
+    var sunColor: Color = Color(255, 255, 255)
+
+    /// Fog colour.
+    var fogColor: Color = Color(255, 255, 255)
+
+    /// Distance where the fog starts.
+    var fogStart: number = 0
+
+    /// Distance of full fog.
+    var fogEnd: number = 0
+
+    /// Sun shadows.
+    var globalShadows: bool = false
+
+    /// Camera exposure.
+    var exposure: number = 0
+
+    /// Glow around bright areas (Neon).
+    var bloom: bool = false
+
+    /// Glow strength.
+    var bloomIntensity: number = 0
+
+    /// Image contrast (1 = neutral).
+    var contrast: number = 0
+
+    /// Colour saturation (0 = black and white).
+    var saturation: number = 0
+
+    /// Screen edge darkening.
+    var vignette: number = 0
+
+    /// Colour tint of the whole image.
+    var tint: Color = Color(255, 255, 255)
+
+    /// Shadow edge softness.
+    var shadowSoftness: number = 0
+
+    /// Contact shadow in corners and at the base of objects.
+    var ambientOcclusion: number = 0
+
+    /// Sun disc size.
+    var sunSize: number = 0
+
+    /// Colour separation at the edges.
+    var chromaticAberration: number = 0
+
+    /// Film grain.
+    var grain: number = 0
+}
+
+/// The connected players.
+class Players extends Instance {
+    /// Maximum players per server.
+    var maxPlayers: number = 12
+
+    /// Seconds until respawning.
+    var respawnTime: number = 5
+
+    /// Create the character automatically.
+    var characterAutoLoads: bool = true
+
+    /// A player joined.
+    event playerAdded(player: any)
+
+    /// A player leaves.
+    event playerRemoving(player: any)
+
+    /// Connected players.
+    fn getPlayers(): list { return children().filter(c => c.isA("Player")) }
+
+    /// Player who owns a character (or null).
+    fn playerFromCharacter(character: any): any { return getPlayers().find(p => p.character == character) }
+
+    /// (Client) The player on this computer.
+    var localPlayer: any = null
+
+    static var current: any = null
+
+    /// Simulación: entra un jugador nuevo (lanza playerAdded) y lo devuelve. El primero es el jugador local.
+    fn join(name: text): any {
+        var p = Player(this)
+        p.name = name
+        p.displayName = name
+        p.userId = len(getPlayers())
+        if localPlayer == null { localPlayer = p }
+        emit playerAdded(p)
+        return p
+    }
+
+    /// Simulación: un jugador se va (lanza playerRemoving).
+    fn leave(player: any) {
+        emit playerRemoving(player)
+        player.destroy()
+    }
+}
+
+/// A connected player (created while playing).
+class Player extends Instance {
+    /// Player identifier.
+    var userId: number = 0
+
+    /// Display name.
+    var displayName: text = ""
+
+    /// Character model.
+    var character: any = null
+
+    /// The player's team.
+    var team: any = null
+
+    /// (Server) Kicks the player.
+    fn kick(reason: any = null): void {}
+
+    /// Folder with the player interface.
+    var playerGui: any = null
+}
+
+/// Character settings and player scripts (client).
+class StarterPlayer extends Instance {
+    /// Walk speed.
+    var characterWalkSpeed: number = 0
+
+    /// Jump strength.
+    var characterJumpPower: number = 0
+
+    /// Maximum zoom.
+    var cameraMaxZoomDistance: number = 0
+
+    /// Minimum zoom.
+    var cameraMinZoomDistance: number = 0
+
+    /// Camera mode.
+    var cameraMode: text = ""
+
+    /// Skeleton: R15 (articulated, realistic animation) or R6 (classic).
+    var rigType: text = ""
+
+    /// Head colour.
+    var headColor: Color = Color(255, 255, 255)
+
+    /// Torso colour.
+    var torsoColor: Color = Color(255, 255, 255)
+
+    /// Arm colour.
+    var armsColor: Color = Color(255, 255, 255)
+
+    /// Leg colour.
+    var legsColor: Color = Color(255, 255, 255)
+}
+
+/// LocalScripts copied to each player on joining (client).
+class StarterPlayerScripts extends Instance {
+}
+
+/// LocalScripts copied to the character every time it spawns.
+class StarterCharacterScripts extends Instance {
+}
+
+/// Interface copied to each player (client).
+class StarterGui extends Instance {
+}
+
+/// Objects and modules shared by server and clients.
+class ReplicatedStorage extends Instance {
+}
+
+/// Server scripts (clients do not see them).
+class ServerScriptService extends Instance {
+}
+
+/// Objects only the server sees.
+class ServerStorage extends Instance {
+}
+
+/// Global music and sounds.
+class SoundService extends Instance {
+}
+
+/// Player teams.
+class Teams extends Instance {
+}
+
+/// Folder to organise objects.
+class Folder extends Instance {
+}
+
+/// Groups parts to move them together (a car, a house, a character).
+class Model extends Instance {
+    /// Primary part (model centre).
+    var primaryPart: any = null
+
+    /// Model centre (or its primaryPart).
+    fn getPivot(): Vec3 { return Vec3(0, 0, 0) }
+
+    /// Moves the whole model so its centre ends at 'position'.
+    fn moveTo(position: Vec3): void {}
+
+    /// Bounding box: {center, size}.
+    fn getBoundingBox(): map { return {} }
+}
+
+/// Base of every 3D part with physics.
+class BasePart extends Instance {
+    /// Centre position (studs).
+    var position: Vec3 = Vec3(0, 0, 0)
+
+    /// Rotation in degrees (X, Y, Z).
+    var rotation: Vec3 = Vec3(0, 0, 0)
+
+    /// Size (studs).
+    var size: Vec3 = Vec3(0, 0, 0)
+
+    /// Color.
+    var color: Color = Color(255, 255, 255)
+
+    /// Material.
+    var material: text = ""
+
+    /// 0 opaca, 1 invisible.
+    var transparency: number = 0
+
+    /// Sky reflection (0-1).
+    var reflectance: number = 0
+
+    /// Casts a shadow.
+    var castShadow: bool = false
+
+    /// Anchored: physics does not move it.
+    var anchored: bool = false
+
+    /// Collides with other parts.
+    var canCollide: bool = false
+
+    /// Fires the touched/touchEnded events.
+    var canTouch: bool = false
+
+    /// It cannot be selected with the mouse in the editor.
+    var locked: bool = false
+
+    /// Rozamiento (0-2).
+    var friction: number = 0
+
+    /// Rebote (0-1).
+    var elasticity: number = 0
+
+    /// Density (mass per volume).
+    var density: number = 0
+
+    /// Linear velocity (studs/s).
+    var velocity: Vec3 = Vec3(0, 0, 0)
+
+    /// Angular velocity (rad/s).
+    var angularVelocity: Vec3 = Vec3(0, 0, 0)
+
+    /// Another part started touching this one.
+    event touched(other: any)
+
+    /// Another part stopped touching it.
+    event touchEnded(other: any)
+
+    /// Pushes the part (not anchored).
+    fn applyImpulse(impulse: Vec3): void {}
+
+    /// Part mass.
+    fn getMass(): number { return 0 }
+
+    /// Rotates the part so its front (-Z) faces the point.
+    fn lookAt(target: Vec3): void {}
+
+    /// Parts touching it right now (while playing).
+    fn getTouchingParts(): list { return [] }
+
+    /// Simulación: otra pieza empieza a tocar esta (lanza touched).
+    fn simulateTouch(other: any) { emit touched(other) }
+}
+
+/// Basic part: block, sphere, cylinder or wedge.
+class Part extends BasePart {
+    /// Forma.
+    var shape: text = ""
+}
+
+/// Point where players spawn.
+class SpawnLocation extends Part {
+    /// Players can spawn here.
+    var enabled: bool = false
+
+    /// Any team can spawn here.
+    var neutral: bool = false
+
+    /// Team that spawns here.
+    var team: any = null
+}
+
+/// Part with an imported mesh (OBJ, glTF/GLB).
+class MeshPart extends BasePart {
+    /// Mesh asset.
+    var meshId: text = ""
+
+    /// Texture (image).
+    var textureId: text = ""
+
+    /// Malla incrustada.
+    var meshData: text = ""
+
+    /// Draw both faces.
+    var doubleSided: bool = false
+}
+
+/// Result of a part Union/Subtract (CSG). Contains the original parts.
+class UnionOperation extends MeshPart {
+    /// Uses the colour of the union instead of the originals.
+    var usePartColor: bool = false
+}
+
+/// 3D camera.
+class Camera extends Instance {
+    /// Position.
+    var position: Vec3 = Vec3(0, 0, 0)
+
+    /// Rotation in degrees (pitch, yaw, roll).
+    var rotation: Vec3 = Vec3(0, 0, 0)
+
+    /// Vertical field of view (degrees).
+    var fieldOfView: number = 0
+
+    /// Custom follows the character; Scriptable is controlled by your script.
+    var cameraType: text = ""
+
+    /// What it follows (the character by default).
+    var subject: any = null
+
+    /// Points the camera at a point.
+    fn lookAt(target: Vec3): void {}
+}
+
+/// Base of the lights.
+class Light extends Instance {
+    /// Light colour.
+    var color: Color = Color(255, 255, 255)
+
+    /// Intensidad.
+    var brightness: number = 0
+
+    /// Alcance (studs).
+    var range: number = 0
+
+    /// Encendida.
+    var enabled: bool = false
+}
+
+/// Light in every direction (inside a part).
+class PointLight extends Light {
+}
+
+/// Spotlight: lights forward (-Z) from its part.
+class SpotLight extends Light {
+    /// Cone angle (degrees).
+    var angle: number = 0
+}
+
+/// Emits particles (fire, smoke, sparks) from its part.
+class ParticleEmitter extends Instance {
+    /// Emits particles.
+    var enabled: bool = false
+
+    /// Particles per second.
+    var rate: number = 0
+
+    /// Minimum and maximum lifetime (s).
+    var lifetime: Vec2 = Vec2(0, 0)
+
+    /// Minimum and maximum speed.
+    var speed: Vec2 = Vec2(0, 0)
+
+    /// Spread (degrees).
+    var spreadAngle: number = 0
+
+    /// Acceleration (for example gravity or wind).
+    var acceleration: Vec3 = Vec3(0, 0, 0)
+
+    /// Initial colour.
+    var color: Color = Color(255, 255, 255)
+
+    /// Final colour.
+    var colorEnd: Color = Color(255, 255, 255)
+
+    /// Start and end size.
+    var sizeRange: Vec2 = Vec2(0, 0)
+
+    /// Particle image (optional).
+    var texture: text = ""
+
+    /// Brillo aditivo (0-1).
+    var lightEmission: number = 0
+
+    /// Transparencia.
+    var transparency: number = 0
+
+    /// Burst particles on start (and with emit()).
+    var burst: number = 0
+
+    /// Maximum live particles.
+    var maxParticles: number = 0
+
+    /// Air drag.
+    var drag: number = 0
+
+    /// Minimum and maximum spin (degrees/s).
+    var spin: Vec2 = Vec2(0, 0)
+
+    /// Additive adds light (fire, magic); Normal covers (smoke, dust).
+    var blendMode: text = ""
+
+    /// Emits a burst of particles (explosions, impacts).
+    fn emit(count: number = 10): void {}
+}
+
+/// Joins two parts so they move together.
+class WeldConstraint extends Instance {
+    /// First part.
+    var part0: any = null
+
+    /// Second part.
+    var part1: any = null
+
+    /// Activa.
+    var enabled: bool = false
+}
+
+/// Makes its part clickable with the mouse.
+class ClickDetector extends Instance {
+    /// Maximum distance.
+    var maxActivationDistance: number = 32
+
+    /// A player clicked the part.
+    event mouseClick(player: any)
+
+    /// Simulación: un jugador hace clic en la pieza (lanza mouseClick).
+    fn simulateClick(player: any = null) { emit mouseClick(player) }
+}
+
+/// Health and movement of a character.
+class Humanoid extends Instance {
+    /// Walk speed (studs/s).
+    var walkSpeed: number = 16
+
+    /// Initial jump speed.
+    var jumpPower: number = 50
+
+    /// Current health.
+    var health: number = 100
+
+    /// Maximum health.
+    var maxHealth: number = 100
+
+    /// Name shown above the head.
+    var displayName: text = ""
+
+    /// Health reached 0.
+    event died()
+
+    /// Health changed.
+    event healthChanged(health: number)
+
+    /// Takes health.
+    fn takeDamage(amount: number) {
+        if health <= 0 { return }
+        health = max(0, health - amount)
+        emit healthChanged(health)
+        if health == 0 { emit died() }
+    }
+
+    /// Walks to a point.
+    fn moveTo(position: Vec3) { parent?.setAttribute("moveTarget", position) }
+
+    /// Jumps (if on the ground).
+    fn jump(): void {}
+}
+
+/// Base of the scripts.
+class LuaSourceContainer extends Instance {
+    /// HyperEZ code.
+    var source: text = ""
+
+    /// Runs when playing.
+    var enabled: bool = false
+}
+
+/// SERVER script (HyperEZ). It goes in ServerScriptService or in Workspace.
+class Script extends LuaSourceContainer {
+}
+
+/// CLIENT script (HyperEZ): input, camera, interface. It goes in StarterPlayerScripts, StarterGui or StarterCharacterScripts.
+class LocalScript extends LuaSourceContainer {
+}
+
+/// Reusable HyperEZ module: used with import (for example import ReplicatedStorage.Utilities).
+class ModuleScript extends LuaSourceContainer {
+}
+
+/// ON TOUCH script (server). Put it inside a part: its code runs every time a player touches it. Ready variables: part, player (who touches it) and character (their body).
+class TouchScript extends Script {
+}
+
+/// ON CLICK script (server). Put it inside a part: its code runs when a player clicks it. Ready variables: part and player.
+class ClickScript extends Script {
+}
+
+/// TIMER script (server): its code repeats every 'interval' seconds while the game runs. Ready variable: tick (1, 2, 3...).
+class TimerScript extends Script {
+    /// Seconds between repetitions (0.03 minimum).
+    var interval: number = 0
+}
+
+/// PER PLAYER script (server): its code runs once for every player who joins. Ready variable: player.
+class PlayerScript extends Script {
+}
+
+/// INTERFACE script (client). Put it inside a ScreenGui or an element: it controls that interface on each player's screen. Ready variables: gui (what contains the script) and player.
+class GuiScript extends LocalScript {
+}
+
+/// ON PRESS script (client). Put it inside a TextButton or ImageButton: its code runs every time the player presses it. Ready variables: button and player.
+class ButtonScript extends LocalScript {
+}
+
+/// Base of the values.
+class ValueBase extends Instance {
+}
+
+/// Stores a text.
+class StringValue extends ValueBase {
+    /// Valor.
+    var value: text = ""
+}
+
+/// Stores a number.
+class NumberValue extends ValueBase {
+    /// Valor.
+    var value: number = 0
+}
+
+/// Guarda verdadero/falso.
+class BoolValue extends ValueBase {
+    /// Valor.
+    var value: bool = false
+}
+
+/// Stores a Vec3.
+class Vector3Value extends ValueBase {
+    /// Valor.
+    var value: Vec3 = Vec3(0, 0, 0)
+}
+
+/// Stores a colour.
+class ColorValue extends ValueBase {
+    /// Valor.
+    var value: Color = Color(255, 255, 255)
+}
+
+/// Stores a reference to another instance.
+class ObjectValue extends ValueBase {
+    /// Instancia.
+    var value: any = null
+}
+
+/// Messages between server and clients (fireServer, fireClient, fireAllClients).
+class RemoteEvent extends Instance {
+    /// (Server) A client called fireServer (value: the data sent).
+    event onServerEvent(player: any, value: any)
+
+    /// (Client) The server called fireClient/fireAllClients.
+    event onClientEvent(value: any)
+
+    /// (Client) Sends a message to the server.
+    fn fireServer(value: any = null) { emit onServerEvent(Players.current?.localPlayer, value) }
+
+    /// (Server) Sends a message to one player.
+    fn fireClient(player: any, value: any = null) { emit onClientEvent(value) }
+
+    /// (Server) Sends a message to every player.
+    fn fireAllClients(value: any = null) { emit onClientEvent(value) }
+}
+
+/// Event between scripts on the same side (server-server or client-client).
+class BindableEvent extends Instance {
+    /// Someone called fire(value).
+    event event(value: any)
+
+    /// Fires the event 'event' on this side.
+    fn fire(value: any = null): void {}
+}
+
+/// Sound or music. Inside a part it plays in 3D.
+class Sound extends Instance {
+    /// Sound asset (WAV, OGG, MP3) or a Music studio song.
+    var soundId: text = ""
+
+    /// Volume (0-10).
+    var volume: number = 0.5
+
+    /// Speed (changes the pitch).
+    var playbackSpeed: number = 1
+
+    /// Repeat when finished.
+    var looped: bool = false
+
+    /// Playing (if active at the start, it plays).
+    var playing: bool = false
+
+    /// Distance at which it can no longer be heard (3D).
+    var rollOffMaxDistance: number = 0
+
+    /// Finished playing.
+    event ended()
+
+    /// Empieza a sonar.
+    fn play() { playing = true }
+
+    /// Stops and goes back to the start.
+    fn stop() { playing = false }
+
+    /// Pausa.
+    fn pause() { playing = false }
+
+    /// Is it playing?
+    var isPlaying: bool = false
+
+    /// Duration in seconds.
+    var timeLength: number = 0
+}
+
+/// Keyframe animation of its model's properties (Animation editor).
+class Animation extends Instance {
+    /// Tracks and keyframes (JSON).
+    var data: text = ""
+
+    /// Repetir.
+    var looped: bool = false
+
+    /// Playback speed.
+    var speed: number = 0
+
+    /// Starts by itself when playing.
+    var autoPlay: bool = false
+
+    /// Finished (if it does not loop).
+    event ended()
+
+    /// Plays the animation.
+    fn play(): void {}
+
+    /// Stops the animation.
+    fn stop(): void {}
+
+    /// Is it playing?
+    var isPlaying: bool = false
+}
+
+/// A team of players.
+class Team extends Instance {
+    /// Team colour.
+    var teamColor: Color = Color(255, 255, 255)
+
+    /// Players are assigned automatically.
+    var autoAssignable: bool = false
+}
+
+/// Interface layer on screen (inside StarterGui).
+class ScreenGui extends Instance {
+    /// Visible.
+    var enabled: bool = true
+
+    /// Drawing order (higher = on top).
+    var displayOrder: number = 0
+}
+
+/// Base of the interface elements.
+class GuiObject extends Instance {
+    /// Position relative to the parent (0-1).
+    var position: Vec2 = Vec2(0, 0)
+
+    /// Offset in pixels.
+    var positionOffset: Vec2 = Vec2(0, 0)
+
+    /// Size relative to the parent (0-1).
+    var size: Vec2 = Vec2(0, 0)
+
+    /// Extra size in pixels.
+    var sizeOffset: Vec2 = Vec2(0, 0)
+
+    /// Anchor point (0,0 corner; 0.5,0.5 centre).
+    var anchorPoint: Vec2 = Vec2(0, 0)
+
+    /// Background colour.
+    var backgroundColor: Color = Color(255, 255, 255)
+
+    /// Background transparency.
+    var backgroundTransparency: number = 0
+
+    /// Border colour.
+    var borderColor: Color = Color(255, 255, 255)
+
+    /// Border width (px).
+    var borderSize: number = 0
+
+    /// Esquinas redondeadas (px).
+    var cornerRadius: number = 0
+
+    /// Visible.
+    var visible: bool = false
+
+    /// Order among siblings.
+    var zIndex: number = 0
+
+    /// The mouse entered.
+    event mouseEnter()
+
+    /// The mouse left.
+    event mouseLeave()
+}
+
+/// Interface rectangle (container).
+class Frame extends GuiObject {
+}
+
+/// On-screen text.
+class TextLabel extends GuiObject {
+    /// Texto.
+    var text: text = ""
+
+    /// Text colour.
+    var textColor: Color = Color(255, 255, 255)
+
+    /// Font size (px).
+    var textSize: number = 0
+
+    /// Text transparency.
+    var textTransparency: number = 0
+
+    /// Horizontal alignment.
+    var textXAlignment: text = ""
+
+    /// Vertical alignment.
+    var textYAlignment: text = ""
+
+    /// Split into several lines.
+    var textWrapped: bool = false
+
+    /// Negrita (simulada).
+    var bold: bool = false
+
+    /// Imported font (TTF/OTF); empty = the engine font.
+    var font: text = ""
+}
+
+/// Button with text.
+class TextButton extends TextLabel {
+    /// Darken on hover/press.
+    var autoButtonColor: bool = false
+
+    /// The button was pressed.
+    event activated()
+
+    /// Simulación: se pulsa el botón (lanza activated).
+    fn simulateActivate() { emit activated() }
+}
+
+/// Text input box.
+class TextBox extends TextLabel {
+    /// Hint text when it is empty.
+    var placeholderText: text = ""
+
+    /// Clear when typing starts.
+    var clearTextOnFocus: bool = false
+
+    /// Typing finished (enterPressed = Enter was pressed).
+    event focusLost(enterPressed: bool)
+}
+
+/// On-screen image.
+class ImageLabel extends GuiObject {
+    /// Image asset.
+    var image: text = ""
+
+    /// Tinte.
+    var imageColor: Color = Color(255, 255, 255)
+
+    /// Transparencia.
+    var imageTransparency: number = 0
+
+    /// Ajuste.
+    var scaleType: text = ""
+}
+
+/// Button with an image.
+class ImageButton extends ImageLabel {
+    /// The button was pressed.
+    event activated()
+
+    /// Simulación: se pulsa el botón (lanza activated).
+    fn simulateActivate() { emit activated() }
+}
+
+/// Base of 2D objects: position, rotation, scale, draw order and visibility.
+class Node2D extends Instance {
+    /// Position (pixels; Y grows downwards).
+    var position: Vec2 = Vec2(0, 0)
+
+    /// Rotation (degrees, clockwise).
+    var rotation: number = 0
+
+    /// Scale (1 = normal size; negative flips).
+    var scale: Vec2 = Vec2(0, 0)
+
+    /// Drawing order (higher = in front).
+    var zIndex: number = 0
+
+    /// Visible (also hides its children).
+    var visible: bool = false
+
+    /// World position (adding those of its parents).
+    fn getWorldPosition(): Vec2 { return Vec2(0, 0) }
+
+    /// Rotates the object to face a point.
+    fn lookAt(target: Vec2): void {}
+}
+
+/// Image or 2D shape with optional physics (Box2D), frame animation, outline, flash, shadow, glow and lights.
+class Sprite2D extends Node2D {
+    /// Size (pixels).
+    var size: Vec2 = Vec2(0, 0)
+
+    /// Pivot inside the sprite (0,0 top left corner; 0.5,0.5 centre; 0.5,1 feet).
+    var pivot: Vec2 = Vec2(0, 0)
+
+    /// Image (empty = coloured shape).
+    var image: text = ""
+
+    /// Colour (or image tint).
+    var color: Color = Color(255, 255, 255)
+
+    /// Transparencia (0 opaco, 1 invisible).
+    var transparency: number = 0
+
+    /// Shape (drawing without an image and collision).
+    var shape: text = ""
+
+    /// Corner radius (RoundedBox).
+    var cornerRadius: number = 0
+
+    /// Lados o puntas (Polygon, Star).
+    var sides: number = 0
+
+    /// Radio interior (Star, Ring).
+    var innerRatio: number = 0
+
+    /// Voltear en horizontal.
+    var flipX: bool = false
+
+    /// Voltear en vertical.
+    var flipY: bool = false
+
+    /// Blends with what is behind.
+    var blendMode: text = ""
+
+    /// Image filtering (Pixel for pixel art).
+    var filter: text = ""
+
+    /// Corner of the part of the image that is used (pixels).
+    var regionPosition: Vec2 = Vec2(0, 0)
+
+    /// Size of the part of the image (0 = the whole image).
+    var regionSize: Vec2 = Vec2(0, 0)
+
+    /// Times the image repeats (floors, walls).
+    var tiling: Vec2 = Vec2(0, 0)
+
+    /// Affected by 2D lights and ambient light.
+    var lit: bool = false
+
+    /// Self-illumination: glows with bloom (0 = none).
+    var emission: number = 0
+
+    /// Outline colour.
+    var outlineColor: Color = Color(255, 255, 255)
+
+    /// Outline width (0 = no outline).
+    var outlineSize: number = 0
+
+    /// Flash colour.
+    var flashColor: Color = Color(255, 255, 255)
+
+    /// Flash 0..1 (animate it with Tween or use flashOnce).
+    var flash: number = 0
+
+    /// Drop shadow (0 = no shadow).
+    var shadowOpacity: number = 0
+
+    /// Blocks the light of Light2D: casts shadows.
+    var castShadow: bool = false
+
+    /// Normal map (relief with lighting); same grid as the image.
+    var normalMap: text = ""
+
+    /// Automatic relief derived from the image or shape (0 = flat).
+    var relief: number = 0
+
+    /// Shadow offset (pixels).
+    var shadowOffset: Vec2 = Vec2(0, 0)
+
+    /// Shadow colour.
+    var shadowColor: Color = Color(255, 255, 255)
+
+    /// Sprite sheet frames.
+    var frames: number = 0
+
+    /// Sheet columns (0 = all in one row).
+    var columns: number = 0
+
+    /// Frames per second (0 = still). With SpriteAnimator it is controlled by the animator.
+    var frameRate: number = 0
+
+    /// Current frame.
+    var frame: number = 0
+
+    /// Body type: Static (ground), Dynamic (falls and collides), Kinematic (moved by you).
+    var body: text = ""
+
+    /// Collision size (0 = the sprite size).
+    var collisionSize: Vec2 = Vec2(0, 0)
+
+    /// Collision offset.
+    var collisionOffset: Vec2 = Vec2(0, 0)
+
+    /// Rozamiento.
+    var friction: number = 0
+
+    /// Rebote.
+    var restitution: number = 0
+
+    /// Density (mass).
+    var density: number = 0
+
+    /// Does not rotate (characters).
+    var fixedRotation: bool = false
+
+    /// Gravity multiplier (0 = floats).
+    var gravityScale: number = 0
+
+    /// Detects contacts without colliding (coins, zones).
+    var isSensor: bool = false
+
+    /// One-way platform: you can jump through it from below.
+    var oneWay: bool = false
+
+    /// Collision layer (1..16).
+    var collisionLayer: number = 0
+
+    /// Layers it collides with: "all" or a list ("1,3").
+    var collisionMask: text = ""
+
+    /// Movement drag (air, water).
+    var linearDamping: number = 0
+
+    /// Angular drag.
+    var angularDamping: number = 0
+
+    /// Continuous detection for very fast objects (bullets).
+    var bullet: bool = false
+
+    /// Speed (px/s).
+    var velocity: Vec2 = Vec2(0, 0)
+
+    /// Spin speed (degrees/s).
+    var angularVelocity: number = 0
+
+    /// (While playing) Is it resting on something?
+    var onGround: bool = false
+
+    /// Another 2D object started touching it.
+    event touched(other: any)
+
+    /// Stopped touching it.
+    event touchEnded(other: any)
+
+    /// (While playing) The player clicked the sprite.
+    event clicked(button: number)
+
+    /// Pushes the sprite at once (dynamic body).
+    fn applyImpulse(impulse: Vec2): void {}
+
+    /// Pushes the sprite gradually (call it every frame).
+    fn applyForce(force: Vec2): void {}
+
+    /// Makes it spin.
+    fn applyTorque(torque: number): void {}
+
+    /// 2D objects touching it now (while playing).
+    fn getTouching(): list { return [] }
+
+    /// Is it resting on something? (while playing)
+    fn isOnGround(): bool { return false }
+
+    /// Quick flash (hits, picking up items).
+    fn flashOnce(duration: number = 0.15, color: any = null): Task { return wait(0) }
+
+    /// Plays an animation from its SpriteAnimator ("run", "jump"...).
+    fn playAnimation(name: any = null): void {}
+
+    /// Simulación: otro objeto 2D empieza a tocar este (lanza touched).
+    fn simulateTouch(other: any) { emit touched(other) }
+}
+
+/// Plays named animations ("idle", "run"...) from a sprite animation asset on the parent Sprite2D.
+class SpriteAnimator extends Instance {
+    /// Animation asset (sheet, grid and clips).
+    var animations: text = ""
+
+    /// Animation being played.
+    var animation: text = ""
+
+    /// Reproduciendo.
+    var playing: bool = false
+
+    /// Speed (1 = normal).
+    var speed: number = 0
+
+    /// A non-looping animation finished.
+    event finished(animation: text)
+
+    /// Changed frame (steps, hits, sounds).
+    event frameChanged(frame: number)
+
+    /// Plays an animation (without a name: restarts the current one).
+    fn play(name: any = null): void {}
+
+    /// Stops and goes back to the first frame.
+    fn stop(): void {}
+
+    /// Pausa.
+    fn pause(): void {}
+}
+
+/// 2D particle effects: fire, smoke, sparks, explosions, magic, rain, snow... Choose a ready-made effect in Properties.
+class ParticleEmitter2D extends Node2D {
+    /// Emitting particles.
+    var emitting: bool = false
+
+    /// Particles per second.
+    var rate: number = 0
+
+    /// Burst particles on start.
+    var burst: number = 0
+
+    /// Only the initial burst (explosions).
+    var oneShot: bool = false
+
+    /// Spawn area.
+    var emissionShape: text = ""
+
+    /// Zone size (radius or width and height).
+    var emissionSize: Vec2 = Vec2(0, 0)
+
+    /// Maximum live particles.
+    var maxParticles: number = 0
+
+    /// Particles move with the emitter.
+    var localSpace: bool = false
+
+    /// Minimum and maximum lifetime (s).
+    var lifetime: Vec2 = Vec2(0, 0)
+
+    /// Minimum and maximum speed (px/s).
+    var speed: Vec2 = Vec2(0, 0)
+
+    /// Direction (degrees: 0 right, 90 down, -90 up).
+    var direction: number = 0
+
+    /// Spray angle (degrees; 360 = every direction).
+    var spread: number = 0
+
+    /// Particle gravity (px/s²).
+    var gravity: Vec2 = Vec2(0, 0)
+
+    /// Air drag.
+    var drag: number = 0
+
+    /// Minimum and maximum spin (degrees/s).
+    var spin: Vec2 = Vec2(0, 0)
+
+    /// Point each particle where it goes (sparks, rain).
+    var alignToVelocity: bool = false
+
+    /// Size when born and when dying (px).
+    var sizeRange: Vec2 = Vec2(0, 0)
+
+    /// Random size variation.
+    var sizeRandom: number = 0
+
+    /// Colour when born.
+    var colorStart: Color = Color(255, 255, 255)
+
+    /// Colour when dying.
+    var colorEnd: Color = Color(255, 255, 255)
+
+    /// Opacity when born.
+    var alphaStart: number = 0
+
+    /// Opacity when dying.
+    var alphaEnd: number = 0
+
+    /// Shape of particles without an image.
+    var particleShape: text = ""
+
+    /// Image of each particle (optional).
+    var texture: text = ""
+
+    /// Horizontal frames in the image.
+    var textureFrames: number = 0
+
+    /// Blending (Additive for fire and light).
+    var blendMode: text = ""
+
+    /// Glow (bloom).
+    var emission: number = 0
+
+    /// Affected by 2D lights.
+    var lit: bool = false
+
+    /// Emits a burst of particles (explosions, impacts).
+    fn emit(count: number = 10): void {}
+
+    /// Clears the live particles.
+    fn clear(): void {}
+
+    /// Applies a ready-made effect: fire, smoke, sparks, explosion, magic, rain, snow, dust, confetti, bubbles, fireflies, heal.
+    fn applyPreset(name: text): void {}
+}
+
+/// Tile map: choose a tile set (an image laid out in a grid) and paint the level with the tile brush. Collisions are generated automatically.
+class Tilemap2D extends Node2D {
+    /// Image with the tiles laid out in a grid.
+    var tileset: text = ""
+
+    /// Size of each tile in the image (px).
+    var tileSize: Vec2 = Vec2(0, 0)
+
+    /// Size of each tile in the world (0 = the image size).
+    var cellSize: Vec2 = Vec2(0, 0)
+
+    /// Tinte.
+    var color: Color = Color(255, 255, 255)
+
+    /// Transparencia.
+    var transparency: number = 0
+
+    /// Affected by 2D lights.
+    var lit: bool = false
+
+    /// Solid tiles collide.
+    var collision: bool = false
+
+    /// Solid tiles: "all", "none" or a list ("0-15,20").
+    var solidTiles: text = ""
+
+    /// Rozamiento.
+    var friction: number = 0
+
+    /// Can be passed through from below (platforms).
+    var oneWay: bool = false
+
+    /// Collision layer (1..16).
+    var collisionLayer: number = 0
+
+    /// Solid tiles block the light of Light2D (shadows).
+    var castShadows: bool = false
+
+    /// Automatic relief with lighting (0 = flat).
+    var relief: number = 0
+
+    /// Auto tiles: first tile of each block of 16 variants ("0" or "0,16"). The edge is chosen automatically while painting.
+    var autotile: text = ""
+
+    /// Tile at (x, y) (-1 = empty).
+    fn getTile(x: number, y: number): number { return 0 }
+
+    /// Places a tile (-1 erases it).
+    fn setTile(x: number, y: number, tile: number): void {}
+
+    /// Fills a rectangle of tiles.
+    fn fillRect(x: number, y: number, w: number, h: number, tile: number): void {}
+
+    /// Clears every tile.
+    fn clearTiles(): void {}
+
+    /// Tile (x, y) at a world point.
+    fn worldToCell(point: Vec2): Vec2 { return Vec2(0, 0) }
+
+    /// Tile centre in the world.
+    fn cellToWorld(x: number, y: number): Vec2 { return Vec2(0, 0) }
+}
+
+/// 2D camera: follows an object smoothly, with dead zone, level bounds, zoom and shake.
+class Camera2D extends Node2D {
+    /// It is the camera used while playing.
+    var current: bool = false
+
+    /// Zoom (2 = twice as close).
+    var zoom: number = 0
+
+    /// Object it follows (optional).
+    var follow: any = null
+
+    /// Smoothing (0 = follows instantly).
+    var smoothing: number = 0
+
+    /// Offset from the target.
+    var offset: Vec2 = Vec2(0, 0)
+
+    /// Zone (width, height) where the target moves without moving the camera.
+    var deadZone: Vec2 = Vec2(0, 0)
+
+    /// Show nothing outside the level bounds.
+    var limitsEnabled: bool = false
+
+    /// Top left corner of the level.
+    var limitMin: Vec2 = Vec2(0, 0)
+
+    /// Bottom right corner of the level.
+    var limitMax: Vec2 = Vec2(0, 0)
+
+    /// Round to whole pixels (pixel art without jitter).
+    var pixelSnap: bool = false
+
+    /// Shakes the camera (hits, explosions).
+    fn shake(intensity: number = 8, duration: number = 0.35): void {}
+}
+
+/// 2D light (torches, street lamps, magic). Darken the scene with Workspace2D.ambientColor so it shows.
+class Light2D extends Node2D {
+    /// Encendida.
+    var enabled: bool = false
+
+    /// Color.
+    var color: Color = Color(255, 255, 255)
+
+    /// Intensidad.
+    var energy: number = 0
+
+    /// Alcance (px).
+    var radius: number = 0
+
+    /// Falloff towards the edge (higher = softer edge).
+    var falloff: number = 0
+
+    /// Parpadeo (antorchas, fuego).
+    var flicker: number = 0
+
+    /// Point, Spot (aimed by rotation) or Directional (sun, moon).
+    var lightType: text = ""
+
+    /// Spotlight angle (degrees).
+    var angle: number = 0
+
+    /// Light visible in the air: dust, fog and rays between the shadows.
+    var halo: number = 0
+
+    /// Height above the scene: lower shows more relief.
+    var height: number = 0
+
+    /// Objects with castShadow and tiles with castShadows cast shadows.
+    var castShadows: bool = false
+
+    /// 0 = hard; 1 = very soft far from the object.
+    var shadowSoftness: number = 0
+
+    /// 0 = no shadow; 1 = black.
+    var shadowStrength: number = 0
+}
+
+/// 2D layer: groups objects to order (layer zIndex), hide or lock them together, with parallax, opacity and tint.
+class Layer2D extends Node2D {
+    /// Opacity of everything inside.
+    var opacity: number = 0
+
+    /// Tint of everything inside.
+    var tint: Color = Color(255, 255, 255)
+
+    /// 1 = with the world; 0.5 = far (moves half as much); 1.3 = near. Visible while playing.
+    var parallax: Vec2 = Vec2(0, 0)
+
+    /// Locked: its objects cannot be selected in the 2D view in the editor.
+    var locked: bool = false
+}
+
+/// 2D water with waves, reflection and refraction of what is behind. Dynamic bodies float and slow down inside.
+class Water2D extends Node2D {
+    /// Width and depth (px). The surface is the top edge.
+    var size: Vec2 = Vec2(0, 0)
+
+    /// Deep water colour.
+    var color: Color = Color(255, 255, 255)
+
+    /// Colour of the foam and surface shine.
+    var surfaceColor: Color = Color(255, 255, 255)
+
+    /// How much of what is behind shows through.
+    var transparency: number = 0
+
+    /// Reflection of what is above.
+    var reflectivity: number = 0
+
+    /// Wave height (px).
+    var waveHeight: number = 0
+
+    /// Distance between waves (px).
+    var waveLength: number = 0
+
+    /// Wave speed.
+    var waveSpeed: number = 0
+
+    /// Refraction: how much what is seen through ripples (px).
+    var distortion: number = 0
+
+    /// Foam on the surface.
+    var foam: number = 0
+
+    /// Upward push (more than 1 = bodies float).
+    var buoyancy: number = 0
+
+    /// Drag inside water.
+    var drag: number = 0
+
+    /// A 2D body enters the water (splashes, sound).
+    event entered(other: any)
+
+    /// A 2D body leaves the water.
+    event exited(other: any)
+}
+
+/// Repeating background with parallax (skies, mountains, clouds): moves slower than the camera.
+class Background2D extends Node2D {
+    /// Image.
+    var image: text = ""
+
+    /// Tinte.
+    var color: Color = Color(255, 255, 255)
+
+    /// Transparencia.
+    var transparency: number = 0
+
+    /// 0 = fixed on screen, 1 = moves with the world (0.2 far, 0.6 near).
+    var scrollFactor: Vec2 = Vec2(0, 0)
+
+    /// Repetir en horizontal.
+    var repeatX: bool = false
+
+    /// Repetir en vertical.
+    var repeatY: bool = false
+
+    /// Size of each copy (0 = the image size).
+    var size: Vec2 = Vec2(0, 0)
+
+    /// Automatic scrolling (clouds): px/s.
+    var autoScroll: Vec2 = Vec2(0, 0)
+
+    /// Affected by 2D lights.
+    var lit: bool = false
+}
+
+/// Line with several points (paths, ropes, rays, outlines). Edit the points by dragging them in the 2D view.
+class Line2D extends Node2D {
+    /// Points: "x,y; x,y; ..." (relative to the position).
+    var points: text = ""
+
+    /// Thickness.
+    var width: number = 0
+
+    /// Width at the end (-1 = the same).
+    var widthEnd: number = 0
+
+    /// Colour at the start.
+    var color: Color = Color(255, 255, 255)
+
+    /// Colour at the end.
+    var colorEnd: Color = Color(255, 255, 255)
+
+    /// Transparencia.
+    var transparency: number = 0
+
+    /// Close (join the last point to the first).
+    var closed: bool = false
+
+    /// Rounded ends and corners.
+    var roundCaps: bool = false
+
+    /// Glow (bloom: lasers).
+    var emission: number = 0
+}
+
+/// Trail left by its parent while moving (swords, projectiles, cars, shooting stars).
+class Trail2D extends Node2D {
+    /// Dejando estela.
+    var emitting: bool = false
+
+    /// Trail duration (s).
+    var lifetime: number = 0
+
+    /// Width at the start.
+    var width: number = 0
+
+    /// Width at the end.
+    var widthEnd: number = 0
+
+    /// Colour at the start.
+    var color: Color = Color(255, 255, 255)
+
+    /// Colour at the end.
+    var colorEnd: Color = Color(255, 255, 255)
+
+    /// Opacity at the start.
+    var alphaStart: number = 0
+
+    /// Opacity at the end.
+    var alphaEnd: number = 0
+
+    /// Mezcla.
+    var blendMode: text = ""
+
+    /// Brillo.
+    var emission: number = 0
+
+    /// Minimum distance between points (px).
+    var minDistance: number = 0
+}
+
+/// Joins two sprites with physics: hinge, distance, spring, rope, weld or wheel. Put it inside one and choose the other in bodyB.
+class Joint2D extends Instance {
+    /// Joint type.
+    var jointType: text = ""
+
+    /// First sprite (empty = the parent).
+    var bodyA: any = null
+
+    /// Second sprite.
+    var bodyB: any = null
+
+    /// Anchor point on the first one (px from its centre).
+    var anchorA: Vec2 = Vec2(0, 0)
+
+    /// Anchor point on the second one.
+    var anchorB: Vec2 = Vec2(0, 0)
+
+    /// Longitud (Distance, Spring, Rope; 0 = la inicial).
+    var length: number = 0
+
+    /// Spring stiffness (Hz).
+    var stiffness: number = 0
+
+    /// Spring damping.
+    var damping: number = 0
+
+    /// Both sprites collide with each other.
+    var collideConnected: bool = false
+
+    /// Motor (Revolute, Wheel).
+    var motor: bool = false
+
+    /// Motor speed (degrees/s).
+    var motorSpeed: number = 0
+
+    /// Maximum motor force.
+    var maxMotorTorque: number = 0
+
+    /// Limit the rotation (Revolute).
+    var limit: bool = false
+
+    /// Minimum angle.
+    var lowerAngle: number = 0
+
+    /// Maximum angle.
+    var upperAngle: number = 0
+}
+
+/// No-code platformer movement for the parent Sprite2D (Dynamic body): run, jump, double jump, coyote time and jump buffering. If the sprite has a SpriteAnimator, it switches animations by itself.
+class PlatformerController2D extends Instance {
+    /// Activo.
+    var enabled: bool = false
+
+    /// Maximum speed (px/s).
+    var speed: number = 0
+
+    /// Acceleration (px/s²).
+    var acceleration: number = 0
+
+    /// Braking when released (px/s²).
+    var deceleration: number = 0
+
+    /// Air control (0..1).
+    var airControl: number = 0
+
+    /// Jump height (px).
+    var jumpHeight: number = 0
+
+    /// Consecutive jumps (2 = double jump).
+    var maxJumps: number = 0
+
+    /// Time to jump after leaving a ledge (s).
+    var coyoteTime: number = 0
+
+    /// Time a jump is remembered before touching the ground (s).
+    var jumpBuffer: number = 0
+
+    /// Releasing the key early cuts the jump.
+    var variableJump: bool = false
+
+    /// Extra gravity when falling (weighty jumps).
+    var fallMultiplier: number = 0
+
+    /// Keys to go left.
+    var leftKeys: text = ""
+
+    /// Keys to go right.
+    var rightKeys: text = ""
+
+    /// Keys to jump.
+    var jumpKeys: text = ""
+
+    /// Flip the sprite towards where it runs.
+    var flipSprite: bool = false
+
+    /// Idle animation.
+    var animIdle: text = ""
+
+    /// Running animation.
+    var animRun: text = ""
+
+    /// Rising animation.
+    var animJump: text = ""
+
+    /// Falling animation.
+    var animFall: text = ""
+
+    /// Jumped.
+    event jumped()
+
+    /// Touched the ground.
+    event landed()
+}
+
+/// Eight-direction top-down movement for the parent Sprite2D (RPG, adventures). With a Dynamic body it collides with walls.
+class TopDownController2D extends Instance {
+    /// Activo.
+    var enabled: bool = false
+
+    /// Maximum speed (px/s).
+    var speed: number = 0
+
+    /// Acceleration.
+    var acceleration: number = 0
+
+    /// Frenado.
+    var deceleration: number = 0
+
+    /// Arriba.
+    var upKeys: text = ""
+
+    /// Abajo.
+    var downKeys: text = ""
+
+    /// Izquierda.
+    var leftKeys: text = ""
+
+    /// Derecha.
+    var rightKeys: text = ""
+
+    /// How it faces where it goes.
+    var facing: text = ""
+
+    /// Idle animation.
+    var animIdle: text = ""
+
+    /// Walking animation.
+    var animWalk: text = ""
+}
+
+/// Text inside the 2D world (floating scores, signs, dialogues).
+class Text2D extends Node2D {
+    /// Texto.
+    var text: text = ""
+
+    /// Size (px).
+    var textSize: number = 0
+
+    /// Color.
+    var color: Color = Color(255, 255, 255)
+
+    /// Transparencia.
+    var transparency: number = 0
+
+    /// Alignment.
+    var alignment: text = ""
+
+    /// Negrita.
+    var bold: bool = false
+
+    /// Imported font (TTF/OTF); empty = the engine font.
+    var font: text = ""
+
+    /// Outline colour.
+    var outlineColor: Color = Color(255, 255, 255)
+
+    /// Outline width (px).
+    var outlineSize: number = 0
+
+    /// Sombra.
+    var shadowOpacity: number = 0
+}
+
+/// Team note anchored to a point in the world: comments, tasks or ideas. Only visible in the editor.
+class Note extends Instance {
+    /// Note text.
+    var text: text = ""
+
+    /// Who wrote it.
+    var author: text = ""
+
+    /// World point where it is anchored.
+    var position: Vec3 = Vec3(0, 0, 0)
+
+    /// Marker colour.
+    var color: Color = Color(255, 255, 255)
+
+    /// Resolved (shown dimmed).
+    var resolved: bool = false
+
+    /// Creation date (seconds).
+    var createdAt: number = 0
+}
+
+/// The running game: time, side (server/client) and the update event of every frame.
+class Game {
+    /// Game seconds since it started.
+    static var time: number = 0
+
+    /// Does this script run on the server?
+    static var isServer: bool = false
+
+    /// Does this script run on a client?
+    static var isClient: bool = false
+
+    /// Is it being tested in LPO Engine?
+    static var isStudio: bool = false
+
+    /// Every frame (dt = seconds since the previous one).
+    static event update(dt: number)
+
+    /// Simulación fuera del motor: ejecuta el bucle del juego durante unos segundos, lanzando update en cada fotograma.
+    static async fn run(seconds: number = 1, fps: number = 60) {
+        var dt = 1 / fps
+        var fin = time + seconds
+        while time < fin {
+            await wait(dt)
+            time += dt
+            emit update(dt)
+        }
+    }
+}
+
+/// (Client) The player's keyboard, mouse and gamepad.
+class Input {
+    /// Is the key pressed? ("W", "Space", "Left", "LeftShift"...)
+    static fn isKeyDown(key: text): bool { return _keys.contains(key) }
+
+    /// Is the mouse button pressed? (1 left, 2 middle, 3 right)
+    static fn isMouseDown(button: number = 1): bool { return _buttons.contains(button) }
+
+    /// Mouse position in the game view (pixels).
+    static var mousePosition: Vec2 = Vec2(0, 0)
+
+    /// Mouse movement in this frame.
+    static var mouseDelta: Vec2 = Vec2(0, 0)
+
+    /// Game view size (pixels).
+    static var viewSize: Vec2 = Vec2(0, 0)
+
+    /// 3D world point under the mouse.
+    static var mouseHit: Vec3 = Vec3(0, 0, 0)
+
+    /// Part under the mouse (or null).
+    static var mouseTarget: any = null
+
+    /// Left stick of the gamepad (-1..1).
+    static var gamepadStick: Vec2 = Vec2(0, 0)
+
+    /// Mouse position in the 2D world (with the 2D camera).
+    static var mouseWorld2D: Vec2 = Vec2(0, 0)
+
+    /// A key was pressed.
+    static event keyDown(key: text)
+
+    /// A key was released.
+    static event keyUp(key: text)
+
+    /// A mouse button was pressed.
+    static event mouseDown(button: number, position: Vec2)
+
+    /// A mouse button was released.
+    static event mouseUp(button: number, position: Vec2)
+
+    /// The mouse wheel moved.
+    static event mouseWheel(delta: number)
+
+    private static var _keys: set = set()
+    private static var _buttons: set = set()
+
+    /// Simulación: pulsa una tecla (lanza keyDown).
+    static fn press(key: text) {
+        _keys.add(key)
+        emit keyDown(key)
+    }
+
+    /// Simulación: suelta una tecla (lanza keyUp).
+    static fn release(key: text) {
+        _keys.remove(key)
+        emit keyUp(key)
+    }
+
+    /// Simulación: hace clic con un botón del ratón (lanza mouseDown y mouseUp).
+    static fn click(button: number = 1, position: Vec2 = Vec2(0, 0)) {
+        mousePosition = position
+        emit mouseDown(button, position)
+        emit mouseUp(button, position)
+    }
+}
+
+/// Tweens: animate number, Vec2, Vec3 and Color properties.
+class Tween {
+    /// Animates the properties to the given values. Curves: linear, quadIn, quadOut, quadInOut, cubicOut, sineInOut, backOut, bounceOut, elasticOut.
+    static async fn to(target: any, props: map, duration: number, easing: text = "quadOut", delay: number = 0): any {
+        if delay > 0 { await wait(delay) }
+        var desde = {}
+        foreach k in props.keys() { desde[k] = target[k] }
+        var t = 0
+        while t < duration {
+            await wait(1 / 60)
+            t = min(duration, t + 1 / 60)
+            var f = _lpoEase(easing, duration <= 0 ? 1 : t / duration)
+            foreach k in props.keys() { target[k] = _lpoLerp(desde[k], props[k], f) }
+        }
+        foreach k in props.keys() { target[k] = props[k] }
+        return target
+    }
+}
+
+/// Destroys objects after a while.
+class Debris {
+    /// Destroys the instance after the given seconds.
+    static fn add(instance: any, seconds: number = 5) { delay(seconds, () => instance.destroy()) }
+}
+
+/// (Server) Data kept between sessions (scores, inventories...).
+class DataStore {
+    private static var _data: map = {}
+
+    /// Stored value (or 'default').
+    static fn get(key: text, default_: any = null): any { return _data.get(key, default_) }
+
+    /// Stores a value (numbers, text, lists, maps...).
+    static fn set(key: text, value: any) { _data[key] = value }
+
+    /// Deletes a value.
+    static fn remove(key: text) { _data.remove(key) }
+
+    /// Claves guardadas.
+    static fn keys(): list { return _data.keys() }
+}
+
+/// Game assets: reads imported text and data (JSON, CSV, dialogues, levels).
+class Assets {
+    /// Simulación: carpeta donde se buscan los recursos.
+    static var folder: text = "assets"
+
+    /// Contents of a text asset.
+    static fn readText(name: text): text { return File.read(Path.join(folder, name)) }
+
+    /// Reads a JSON asset as maps and lists.
+    static fn readJson(name: text): any { return JSON.parse(readText(name)) }
+
+    /// Reads a CSV table as a list of rows (each row a list of text).
+    static fn readCsv(name: text): list { return readText(name).lines().filter(l => l.trim() != "").map(l => l.split(",")) }
+
+    /// Does the asset exist?
+    static fn exists(name: text): bool { return File.exists(Path.join(folder, name)) }
+
+    /// Asset names (of one type: image, sound, text, font, mesh, song, spriteanim).
+    static fn list(type: any = null): list { return [] }
+}
+
+/// Helpers for 2D games: find and create objects, floating text, particles, shake, slow motion, hit freeze, flashes, fades and zone queries.
+class World2D {
+    /// The first object in the 2D world with that name (searches everywhere).
+    static fn find(name: text): any { return workspace2D.findDescendant(name) }
+
+    /// Every object in the 2D world with that name or of that class.
+    static fn findAll(nameOrClass: text): list { return workspace2D.descendants().filter(d => d.name == nameOrClass or d.isA(nameOrClass)) }
+
+    /// Creates a copy of an object (for example kept in ReplicatedStorage) in the 2D world, at that position.
+    static fn spawn(template: any, position: any = null, parent: any = null): any {
+        var copia = template.clone()
+        copia.parent = parent ?? workspace2D
+        if position != null { copia.position = position }
+        return copia
+    }
+
+    /// Floating text that rises and fades (damage, points, notices). The position can be an object.
+    static fn popup(text: any, position: any, color: any = null, size: number = 12): any { return null }
+
+    /// Particle burst from a ready-made effect (fire, smoke, sparks, explosion, magic, dust, confetti...) that clears itself.
+    static fn burst(preset: text, position: any, count: number = 24): any { return null }
+
+    /// Shakes the current 2D camera.
+    static fn shake(intensity: number = 8, seconds: number = 0.35): void {}
+
+    /// Freezes the 2D world for an instant: gives hits more impact.
+    static fn hitStop(seconds: number = 0.08): Task { return wait(0) }
+
+    /// Slow motion for a few seconds and a smooth return to normal.
+    static fn slowMotion(scale: number = 0.3, seconds: number = 1): Task { return wait(0) }
+
+    /// Full-screen flash.
+    static fn flash(color: any = null, seconds: number = 0.25, amount: number = 0.75): Task { return wait(0) }
+
+    /// Fade to a colour (black if none is given). Use it with await.
+    static fn fadeOut(seconds: number = 0.6, color: any = null): Task { return wait(0) }
+
+    /// Returns from the fade.
+    static fn fadeIn(seconds: number = 0.6): Task { return wait(0) }
+
+    /// Sprites touching a circle (explosions, attack ranges).
+    static fn overlapCircle(center: any, radius: number): list { return [] }
+
+    /// Ray from one point to another: {instance, position, normal, distance} of the first thing it hits, or null.
+    static fn raycast(from: any, to: any, ignore: any = null): map? { return null }
+
+    /// Distance between two objects or points.
+    static fn distance(a: any, b: any): number { return (_lpoPoint(a) - _lpoPoint(b)).length() }
+
+    /// Direction (length 1) from one object or point to another.
+    static fn direction(from_: any, to: any): Vec2 { return (_lpoPoint(to) - _lpoPoint(from_)).normalized() }
+
+    /// 2D time speed (1 normal, 0.3 slow, 0 frozen).
+    static var timeScale: number = 0
+
+    /// The current Camera2D (or null).
+    static var camera: any = null
+
+    /// Mouse position in the 2D world.
+    static var mouse: Vec2 = Vec2(0, 0)
+}
+
+/// Timers: call a function after a while or every so often (game time).
+class Timer {
+    private static var _next: number = 1
+    private static var _tasks: map = {}
+
+    /// Calls the function once after the given seconds. Returns its number.
+    static fn after(seconds: number, fn_: function): number {
+        var id = _next++
+        _tasks[id] = delay(seconds, fn_)
+        return id
+    }
+
+    /// Calls the function every few seconds (forever or 'times' times). Returns its number.
+    static fn every(seconds: number, fn_: function, times: any = null): number {
+        var id = _next++
+        _tasks[id] = spawn(async () => {
+            var n = 0
+            while times == null or n < times {
+                await wait(seconds)
+                fn_()
+                n++
+            }
+        })
+        return id
+    }
+
+    /// Stops a timer.
+    static fn cancel(id: number) {
+        var t = _tasks.get(id)
+        if t != null { t.cancel() }
+        _tasks.remove(id)
+    }
+}
+
+/// How it blends with what is behind: Normal, Additive (adds light: fire, magic), Multiply (darkens), Screen (lightens).
+const BlendMode2D = { Normal: "Normal", Additive: "Additive", Multiply: "Multiply", Screen: "Screen" }
+
+/// 2D physics of a sprite.
+const BodyType2D = { None: "None", Static: "Static", Dynamic: "Dynamic", Kinematic: "Kinematic" }
+
+/// Player camera mode.
+const CameraMode = { Classic: "Classic", LockFirstPerson: "LockFirstPerson" }
+
+/// How the camera moves.
+const CameraType = { Custom: "Custom", Scriptable: "Scriptable", Fixed: "Fixed" }
+
+/// Zone where particles are born.
+const EmissionShape2D = { Point: "Point", Circle: "Circle", Rectangle: "Rectangle", Ring: "Ring", Line: "Line" }
+
+/// How the character faces the direction it moves.
+const Facing2D = { None: "None", Flip: "Flip", Rotate: "Rotate" }
+
+/// Joint type: hinge, fixed distance, spring, rope, weld or wheel (with suspension).
+const JointType2D = { Revolute: "Revolute", Distance: "Distance", Spring: "Spring", Rope: "Rope", Weld: "Weld", Wheel: "Wheel" }
+
+/// Point: lights a circle. Spot: a spotlight aimed by rotation (0 right, 90 down). Directional: a sun or moon lighting everything.
+const LightType2D = { Point: "Point", Spot: "Spot", Directional: "Directional" }
+
+/// Part material: changes the look (procedural texture, shine, reflections).
+const Material = { Plastic: "Plastic", SmoothPlastic: "SmoothPlastic", Neon: "Neon", Metal: "Metal", Wood: "Wood", Glass: "Glass", Grass: "Grass", Brick: "Brick", Concrete: "Concrete", Ice: "Ice", Sand: "Sand", Fabric: "Fabric", Marble: "Marble", Slate: "Slate", ForceField: "ForceField" }
+
+/// Shape of a part.
+const PartShape = { Block: "Block", Ball: "Ball", Cylinder: "Cylinder", Wedge: "Wedge" }
+
+/// Shape of each particle (when it has no image).
+const ParticleShape2D = { Soft: "Soft", Circle: "Circle", Square: "Square", Spark: "Spark", Star: "Star", Ring: "Ring" }
+
+/// Auto: 2D only when there are no 3D parts; Overlay: on top of 3D; Exclusive: 2D only; Off: not drawn.
+const RenderMode2D = { Auto: "Auto", Overlay: "Overlay", Exclusive: "Exclusive", Off: "Off" }
+
+/// Character skeleton: R15 (15 parts with elbows, knees, hands and feet) or R6 (6 parts).
+const RigType = { R15: "R15", R6: "R6" }
+
+/// How an image fits its box.
+const ScaleType = { Stretch: "Stretch", Fit: "Fit" }
+
+/// 2D shape (drawing without an image and collision).
+const Shape2D = { Box: "Box", Circle: "Circle", RoundedBox: "RoundedBox", Capsule: "Capsule", Triangle: "Triangle", Polygon: "Polygon", Star: "Star", Ring: "Ring" }
+
+/// Horizontal text alignment.
+const TextXAlignment = { Left: "Left", Center: "Center", Right: "Right" }
+
+/// Vertical text alignment.
+const TextYAlignment = { Top: "Top", Center: "Center", Bottom: "Bottom" }
+
+/// Image filtering: Pixel (crisp pixel art), Smooth (smoothed) or Auto.
+const TextureFilter2D = { Auto: "Auto", Pixel: "Pixel", Smooth: "Smooth" }
+
+const _LPO_PARENTS = {
+    DataModel: "Instance",
+    Workspace: "Instance",
+    Workspace2D: "Instance",
+    Lighting: "Instance",
+    Players: "Instance",
+    Player: "Instance",
+    StarterPlayer: "Instance",
+    StarterPlayerScripts: "Instance",
+    StarterCharacterScripts: "Instance",
+    StarterGui: "Instance",
+    ReplicatedStorage: "Instance",
+    ServerScriptService: "Instance",
+    ServerStorage: "Instance",
+    SoundService: "Instance",
+    Teams: "Instance",
+    Folder: "Instance",
+    Model: "Instance",
+    BasePart: "Instance",
+    Part: "BasePart",
+    SpawnLocation: "Part",
+    MeshPart: "BasePart",
+    UnionOperation: "MeshPart",
+    Camera: "Instance",
+    Light: "Instance",
+    PointLight: "Light",
+    SpotLight: "Light",
+    ParticleEmitter: "Instance",
+    WeldConstraint: "Instance",
+    ClickDetector: "Instance",
+    Humanoid: "Instance",
+    LuaSourceContainer: "Instance",
+    Script: "LuaSourceContainer",
+    LocalScript: "LuaSourceContainer",
+    ModuleScript: "LuaSourceContainer",
+    TouchScript: "Script",
+    ClickScript: "Script",
+    TimerScript: "Script",
+    PlayerScript: "Script",
+    GuiScript: "LocalScript",
+    ButtonScript: "LocalScript",
+    ValueBase: "Instance",
+    StringValue: "ValueBase",
+    NumberValue: "ValueBase",
+    BoolValue: "ValueBase",
+    Vector3Value: "ValueBase",
+    ColorValue: "ValueBase",
+    ObjectValue: "ValueBase",
+    RemoteEvent: "Instance",
+    BindableEvent: "Instance",
+    Sound: "Instance",
+    Animation: "Instance",
+    Team: "Instance",
+    ScreenGui: "Instance",
+    GuiObject: "Instance",
+    Frame: "GuiObject",
+    TextLabel: "GuiObject",
+    TextButton: "TextLabel",
+    TextBox: "TextLabel",
+    ImageLabel: "GuiObject",
+    ImageButton: "ImageLabel",
+    Node2D: "Instance",
+    Sprite2D: "Node2D",
+    SpriteAnimator: "Instance",
+    ParticleEmitter2D: "Node2D",
+    Tilemap2D: "Node2D",
+    Camera2D: "Node2D",
+    Light2D: "Node2D",
+    Layer2D: "Node2D",
+    Water2D: "Node2D",
+    Background2D: "Node2D",
+    Line2D: "Node2D",
+    Trail2D: "Node2D",
+    Joint2D: "Instance",
+    PlatformerController2D: "Instance",
+    TopDownController2D: "Instance",
+    Text2D: "Node2D",
+    Note: "Instance"
+}
+
+fn _lpoCreate(className: text): any {
+    return match className {
+        "Workspace" => Workspace(),
+        "Workspace2D" => Workspace2D(),
+        "Lighting" => Lighting(),
+        "Players" => Players(),
+        "Player" => Player(),
+        "StarterPlayer" => StarterPlayer(),
+        "StarterPlayerScripts" => StarterPlayerScripts(),
+        "StarterCharacterScripts" => StarterCharacterScripts(),
+        "StarterGui" => StarterGui(),
+        "ReplicatedStorage" => ReplicatedStorage(),
+        "ServerScriptService" => ServerScriptService(),
+        "ServerStorage" => ServerStorage(),
+        "SoundService" => SoundService(),
+        "Teams" => Teams(),
+        "Folder" => Folder(),
+        "Model" => Model(),
+        "BasePart" => BasePart(),
+        "Part" => Part(),
+        "SpawnLocation" => SpawnLocation(),
+        "MeshPart" => MeshPart(),
+        "UnionOperation" => UnionOperation(),
+        "Camera" => Camera(),
+        "Light" => Light(),
+        "PointLight" => PointLight(),
+        "SpotLight" => SpotLight(),
+        "ParticleEmitter" => ParticleEmitter(),
+        "WeldConstraint" => WeldConstraint(),
+        "ClickDetector" => ClickDetector(),
+        "Humanoid" => Humanoid(),
+        "LuaSourceContainer" => LuaSourceContainer(),
+        "Script" => Script(),
+        "LocalScript" => LocalScript(),
+        "ModuleScript" => ModuleScript(),
+        "TouchScript" => TouchScript(),
+        "ClickScript" => ClickScript(),
+        "TimerScript" => TimerScript(),
+        "PlayerScript" => PlayerScript(),
+        "GuiScript" => GuiScript(),
+        "ButtonScript" => ButtonScript(),
+        "ValueBase" => ValueBase(),
+        "StringValue" => StringValue(),
+        "NumberValue" => NumberValue(),
+        "BoolValue" => BoolValue(),
+        "Vector3Value" => Vector3Value(),
+        "ColorValue" => ColorValue(),
+        "ObjectValue" => ObjectValue(),
+        "RemoteEvent" => RemoteEvent(),
+        "BindableEvent" => BindableEvent(),
+        "Sound" => Sound(),
+        "Animation" => Animation(),
+        "Team" => Team(),
+        "ScreenGui" => ScreenGui(),
+        "GuiObject" => GuiObject(),
+        "Frame" => Frame(),
+        "TextLabel" => TextLabel(),
+        "TextButton" => TextButton(),
+        "TextBox" => TextBox(),
+        "ImageLabel" => ImageLabel(),
+        "ImageButton" => ImageButton(),
+        "Node2D" => Node2D(),
+        "Sprite2D" => Sprite2D(),
+        "SpriteAnimator" => SpriteAnimator(),
+        "ParticleEmitter2D" => ParticleEmitter2D(),
+        "Tilemap2D" => Tilemap2D(),
+        "Camera2D" => Camera2D(),
+        "Light2D" => Light2D(),
+        "Layer2D" => Layer2D(),
+        "Water2D" => Water2D(),
+        "Background2D" => Background2D(),
+        "Line2D" => Line2D(),
+        "Trail2D" => Trail2D(),
+        "Joint2D" => Joint2D(),
+        "PlatformerController2D" => PlatformerController2D(),
+        "TopDownController2D" => TopDownController2D(),
+        "Text2D" => Text2D(),
+        "Note" => Note(),
+        else => { throw Error("LPO Engine no tiene la clase '${className}'") }
+    }
+}
+
+/// The game (root of everything).
+var game = DataModel()
+/// The 3D world.
+var workspace = game.workspace
+/// The 2D world.
+var workspace2D = game.workspace2D
+/// El script que se está ejecutando.
+var script = Script(game.serverScriptService)

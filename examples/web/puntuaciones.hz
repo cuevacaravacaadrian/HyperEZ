@@ -1,10 +1,3 @@
-// Web: una aplicación con página HTML y API JSON para guardar las puntuaciones de un juego.
-//   hyper puntuaciones.hz          y abre http://localhost:8080
-//   GET  /                 página con la tabla de puntuaciones
-//   GET  /api/puntos       lista en JSON
-//   POST /api/puntos       añade {jugador, puntos}
-//   GET  /api/puntos/:id   una puntuación
-// Sin teclado (en las pruebas) no arranca el servidor: prueba las rutas directamente.
 import web
 import html
 import db
@@ -41,7 +34,6 @@ app.post("/api/puntos", req => {
 if Console.interactive {
     app.listen(8080)
 } else {
-    // Demostración sin servidor
     print(app.handle(web.request("GET", "/api/puntos")).map(p => "${p.jugador}: ${p.puntos}"))
     print(app.handle(web.request("POST", "/api/puntos", { jugador: "Marta", puntos: 1500 })))
     print(app.handle(web.request("POST", "/api/puntos", { jugador: "?" })).status)

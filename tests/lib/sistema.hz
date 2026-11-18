@@ -1,5 +1,3 @@
-// Process, Path, File y Time.
-
 test("Process.shell y Process.run", () => {
     var r = Process.shell("echo hola")
     assertEqual(r.ok, true)

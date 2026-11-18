@@ -2,7 +2,7 @@
   "name": "hyperezprogramminglanguagevscodeextensioneditor",
   "displayName": "HyperEZ Programming Language",
   "description": "Lenguaje de programación en español para hacer de todo: juegos, webs, IA, datos, gráficos y sistemas. Colores, errores en vivo, autocompletado, F5 para ejecutar, formato, pruebas, consola interactiva, tema propio y tutorial.",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "publisher": "hyperez",
   "license": "MIT",
   "author": {
@@ -16,7 +16,7 @@
   "bugs": {
     "url": "https://github.com/cuevacaravacaadrian/HyperEZ/issues"
   },
-  "homepage": "https://cuevacaravacaadrian.github.io/HyperEZ/",
+  "homepage": "https://github.com/cuevacaravacaadrian/HyperEZ",
   "icon": "icons/hyperez-128.png",
   "galleryBanner": {
     "color": "#0f1424",
@@ -59,14 +59,13 @@
     "intérprete",
     "formatter",
     "lsp",
-    "hypersettings",
-    "editor online"
+    "hypersettings"
   ],
   "badges": [
     {
-      "url": "https://img.shields.io/badge/web-HyperEZ-62d962",
-      "href": "https://cuevacaravacaadrian.github.io/HyperEZ/",
-      "description": "La web de HyperEZ: documentación, descargas y editor en el navegador"
+      "url": "https://img.shields.io/badge/GitHub-HyperEZ-62d962",
+      "href": "https://github.com/cuevacaravacaadrian/HyperEZ",
+      "description": "HyperEZ en GitHub: documentación, descargas y código"
     },
     {
       "url": "https://vsmarketplacebadges.dev/installs-short/hyperez.hyperezprogramminglanguagevscodeextension.svg?label=instalaciones",
@@ -562,7 +561,7 @@
   "scripts": {
     "bundle": "node tools/bundle.js",
     "vscode:prepublish": "node tools/bundle.js",
-    "package": "vsce package --no-dependencies --allow-missing-repository --allow-star-activation -o hyperez-0.9.0.vsix",
+    "package": "vsce package --no-dependencies --allow-missing-repository --allow-star-activation -o hyperez-1.0.0.vsix",
     "test": "node test/grammar.test.js",
     "test:vscode": "node test/runTest.js"
   },

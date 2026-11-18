@@ -1,6 +1,3 @@
-// Comprimir y descomprimir archivos .zip (compatibles con Windows, macOS y Linux).
-//   hyper comprimir.hz                     demostración en una carpeta temporal
-//   hyper comprimir.hz carpeta copia.zip   comprime una carpeta tuya
 import zip
 
 if System.args.length >= 2 {

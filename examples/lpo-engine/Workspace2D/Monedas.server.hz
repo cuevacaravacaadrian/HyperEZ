@@ -1,0 +1,28 @@
+var heroe = Sprite2D(workspace2D)
+heroe.name = "Heroe"
+heroe.position = Vec2(0, 0)
+
+var plantilla = Sprite2D(game.replicatedStorage)
+plantilla.name = "Moneda"
+plantilla.shape = Shape2D.Circle
+plantilla.color = Color.GOLD
+
+var puntos = 0
+for i in 1..=3 {
+    var moneda = World2D.spawn(plantilla, Vec2(i * 40, 0))
+    on moneda.touched as e {
+        puntos += 10
+        print("Moneda a ${round(World2D.distance(heroe, moneda))} px recogida: ${puntos} puntos")
+        moneda.destroy()
+    }
+}
+
+print("Monedas en el mundo:", len(World2D.findAll("Moneda")))
+foreach moneda in World2D.findAll("Moneda") { moneda.simulateTouch(heroe) }
+print("Quedan:", len(World2D.findAll("Moneda")))
+
+var avisos = 0
+var id = Timer.every(0.1, () => { avisos++ }, 3)
+await wait(0.5)
+print("Avisos del temporizador:", avisos)
+Timer.cancel(id)

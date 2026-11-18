@@ -34,7 +34,6 @@ static std::wstring widen(const std::string& s) {
     return w;
 }
 
-// Reglas de comillas de CommandLineToArgvW.
 static std::wstring quoteArg(const std::wstring& a) {
     if (!a.empty() && a.find_first_of(L" \t\"") == std::wstring::npos) return a;
     std::wstring r = L"\"";
@@ -59,7 +58,6 @@ static std::wstring commandLine(const std::vector<std::string>& argv) {
     return cmd;
 }
 
-// Bloque de entorno: el actual menos las variables quitadas o redefinidas, más las nuevas.
 static std::wstring environmentBlock(const ProcessOptions& opt) {
     std::vector<std::wstring> drop;
     for (auto& n : opt.unsetEnv) drop.push_back(widen(n) + L"=");
@@ -158,7 +156,6 @@ ProcessResult runCapture(const std::vector<std::string>& argv, const ProcessOpti
 }
 
 ProcessResult runShell(const std::string& command, const ProcessOptions& opt) {
-    // /s: cmd quita las comillas exteriores y respeta el resto de la línea tal cual
     return runCommandLine(L"cmd.exe /d /s /c \"" + widen(command) + L"\"", opt);
 }
 
@@ -195,7 +192,7 @@ bool openWithSystem(const std::string& target) {
 
 int currentProcessId() { return (int)GetCurrentProcessId(); }
 
-#else // POSIX
+#else
 
 static void ignoreSigpipe() {
     static bool done = false;
@@ -224,7 +221,7 @@ ProcessResult runCapture(const std::vector<std::string>& argv, const ProcessOpti
     ignoreSigpipe();
     int outp[2], errp[2], inp[2], failp[2];
     if (pipe(outp) || pipe(errp) || pipe(inp) || pipe(failp)) return r;
-    fcntl(failp[1], F_SETFD, FD_CLOEXEC); // se cierra solo si exec funciona
+    fcntl(failp[1], F_SETFD, FD_CLOEXEC);
     auto args = cArgs(argv);
     pid_t pid = fork();
     if (pid < 0) return r;
@@ -344,4 +341,4 @@ int currentProcessId() { return (int)getpid(); }
 
 #endif
 
-} // namespace hz
+}

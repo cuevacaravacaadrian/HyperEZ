@@ -1,5 +1,3 @@
-# Prueba de 'hyper new' (ctest "proyectos"): crea un proyecto de cada tipo, lo comprueba y pasa sus pruebas.
-#   cmake -DHYPER=<hyper> -DTMP=<carpeta> -P check_projects.cmake
 file(REMOVE_RECURSE "${TMP}")
 file(MAKE_DIRECTORY "${TMP}")
 foreach(kind juego app ia script web sitio)
@@ -18,7 +16,6 @@ foreach(kind juego app ia script web sitio)
   endif()
 endforeach()
 
-# Las carpetas de HyperEZ: hypertools (hyper tool), hyperlibs e hypercode (import por nombre), System.projectDir
 set(P "${TMP}/p-juego")
 file(WRITE "${P}/hypertools/saludo.hez" "// Saluda
 import saludos

@@ -25,11 +25,9 @@ for _s in (sys.stdout, sys.stderr):
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KIT = os.path.join(ROOT, "editors", "linguist")
 REPO = "cuevacaravacaadrian/HyperEZ"
-GRAMMAR_REPO = "cuevacaravacaadrian/hyperez-grammar"   # repositorio solo con la gramática (ver README.md)
-AUTHORS = {"cuevacaravacaadrian"}  # Linguist no cuenta los repositorios del autor (antes "cuevacaravacaadrian-ux")
+GRAMMAR_REPO = "cuevacaravacaadrian/hyperez-grammar"
+AUTHORS = {"cuevacaravacaadrian"}
 
-# La entrada de lib/linguist/languages.yml. Solo .hez: .hz ya lo usan miles de archivos que no son HyperEZ
-# (configuración de Hertz para Go, firmware...), así que GitHub nunca se lo daría a HyperEZ.
 LANGUAGE = {
     "name": "HyperEZ",
     "type": "programming",
@@ -44,13 +42,12 @@ COLOR_RATIONALE = ("the green of the code in HyperEZ's logo and banner; among th
 ALLOWED_FIELDS = {"type", "color", "extensions", "interpreters", "tm_scope", "ace_mode", "codemirror_mode",
                   "codemirror_mime_type", "aliases", "filenames", "group", "wrap", "fs_name", "searchable", "language_id"}
 
-# Muestras reales (Linguist no acepta "hola mundo" ni ejemplos de tutorial): (origen, nombre, shebang)
 SAMPLES = [
     ("examples/juegos/tres_en_raya.hz", "tres_en_raya.hez", False),
     ("examples/algoritmos/rutas.hz", "rutas.hez", False),
     ("examples/web/pagina_markdown.hz", "pagina_markdown.hez", False),
     ("examples/ia/red_neuronal.hz", "red_neuronal.hez", False),
-    ("examples/sistema/organizar.hz", "organizar.hez", True),   # script con #!/usr/bin/env hyper
+    ("examples/sistema/organizar.hz", "organizar.hez", True),
     ("src/lib/collections.hz", "collections.hez", False),
     ("src/lib/validate.hz", "validate.hez", False),
 ]
@@ -78,9 +75,7 @@ def write(path, text):
 
 def languages_yml():
     L = LANGUAGE
-    out = ["# Entrada para github-linguist/linguist: lib/linguist/languages.yml (en orden alfabético).",
-           "# Generada por tools/linguist_kit.py. Linguist añade el language_id con script/update-ids.",
-           L["name"] + ":",
+    out = [L["name"] + ":",
            "  type: " + L["type"],
            '  color: "%s"' % L["color"],
            "  extensions:"]
@@ -178,7 +173,6 @@ def check(hyper):
     errors = []
     err = errors.append
     L = LANGUAGE
-    # 1. La entrada: los campos que acepta Linguist y lo que comprueban sus pruebas
     if not re.fullmatch(r"#[0-9a-f]{6}", L["color"]):
         err("el color debe ser #rrggbb en minúsculas: " + L["color"])
     unknown = set(L) - ALLOWED_FIELDS - {"name"}
@@ -194,7 +188,6 @@ def check(hyper):
     yml = os.path.join(KIT, "languages.yml")
     if not os.path.exists(yml) or read(yml) != languages_yml():
         err("editors/linguist/languages.yml no está al día: python tools/linguist_kit.py")
-    # 2. Muestras: al día, de una extensión de la entrada, al menos una por extensión, y que compilen
     sdir = os.path.join(KIT, "samples")
     present = sorted(os.listdir(sdir)) if os.path.isdir(sdir) else []
     if present != sorted(name for _, name, _ in SAMPLES):
@@ -226,7 +219,6 @@ def check(hyper):
             err("falta una muestra con la extensión " + e)
     if not any(sh for _, _, sh in SAMPLES):
         err("falta una muestra con #!/usr/bin/env hyper (para el intérprete)")
-    # 3. La gramática: JSON válido, el alcance de la entrada, una sola gramática y con licencia
     gdir = os.path.join(KIT, "grammar")
     gpath = os.path.join(gdir, "hyperez.tmLanguage.json")
     try:
@@ -274,7 +266,7 @@ def progress():
         return 2
     files, repos, owners = 0, set(), set()
     own = 0
-    for page in range(1, 11):  # la API da como mucho 1000 resultados
+    for page in range(1, 11):
         url = "https://api.github.com/search/code?" + urllib.parse.urlencode({"q": "extension:hez", "per_page": 100, "page": page})
         req = urllib.request.Request(url, headers={"Authorization": "Bearer " + tk, "Accept": "application/vnd.github+json",
                                                    "User-Agent": "hyperez-linguist-kit"})
@@ -291,7 +283,7 @@ def progress():
             owners.add(owner)
         if len(items) < 100:
             break
-        time.sleep(7)  # la búsqueda de código admite unas 10 peticiones por minuto
+        time.sleep(7)
     meta = 2000
     print("Archivos .hez en GitHub (sin contar los %d del autor): %d" % (own, files))
     print("  en %d repositorios de %d usuarios distintos" % (len(repos), len(owners)))

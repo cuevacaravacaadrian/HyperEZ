@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!-- HyperEZ para Notepad++: Lenguaje → Definir tu idioma… → Importar… y elige este archivo. Generado por tools/gen_editors.py -->
 <NotepadPlus>
     <UserLang name="HyperEZ" ext="hez hz" udlVersion="2.1">
         <Settings>
@@ -26,11 +25,11 @@
             <Keywords name="Folders in comment, open"></Keywords>
             <Keywords name="Folders in comment, middle"></Keywords>
             <Keywords name="Folders in comment, close"></Keywords>
-            <Keywords name="Keywords1">var let const function return if else for foreach in while repeat break continue class struct constructor this super extends implements interface enum import from as public private protected static new try catch finally throw async await match event on once emit step get set and or not is</Keywords>
-            <Keywords name="Keywords2">true false null</Keywords>
-            <Keywords name="Keywords3">number int text bool list map set any void function Task Range Event</Keywords>
-            <Keywords name="Keywords4">print println write input len typeof str toNumber toInt assert assertEqual assertThrows test exit range time wait spawn abs sqrt pow floor ceil round min max clamp random randomInt randomChoice randomSeed Console File System JSON Path Time Process Http Regex Bytes Hash Matrix Image Vec2 Vec3 Color Error</Keywords>
-            <Keywords name="Keywords5"></Keywords>
+            <Keywords name="Keywords1">var let const function fn class struct interface enum event constructor import from as extends implements public private protected static async get set and or not is new on once emit priority</Keywords>
+            <Keywords name="Keywords2">true false null this super</Keywords>
+            <Keywords name="Keywords3">number int float double text string char bool boolean list array map dict set any object void null function Function Task Promise Range Event Subscription</Keywords>
+            <Keywords name="Keywords4">print println write input len typeof str toNumber toInt assert assertEqual assertThrows test exit range time now wait nextFrame spawn delay tick warn createEvent off abs sqrt pow floor ceil round sign min max clamp lerp sin cos tan asin acos atan atan2 hypot exp log log10 radians degrees random randomInt randomChoice randomSeed remap wrap approach smoothstep chance distance isNaN awaitAll awaitAny parseInt gcd lcm factorial isPrime primes divisors cbrt trunc fract sinh cosh tanh randomGaussian noise chr ord Console File System JSON Vec2 Vec3 Color Error EventData HyperCore HyperMath Process Path Time Bytes Hash Base64 Regex Http Matrix Image ProcessHandle</Keywords>
+            <Keywords name="Keywords5">if else elif match for foreach in while repeat loop do break continue return await throw try catch finally step</Keywords>
             <Keywords name="Keywords6"></Keywords>
             <Keywords name="Keywords7"></Keywords>
             <Keywords name="Keywords8"></Keywords>
@@ -45,7 +44,7 @@
             <WordsStyle name="KEYWORDS2" fgColor="0000DC" bgColor="FFFFFF" fontStyle="0" nesting="0" />
             <WordsStyle name="KEYWORDS3" fgColor="267F99" bgColor="FFFFFF" fontStyle="0" nesting="0" />
             <WordsStyle name="KEYWORDS4" fgColor="795E26" bgColor="FFFFFF" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS5" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+            <WordsStyle name="KEYWORDS5" fgColor="AF00DB" bgColor="FFFFFF" fontStyle="1" nesting="0" />
             <WordsStyle name="KEYWORDS6" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
             <WordsStyle name="KEYWORDS7" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />
             <WordsStyle name="KEYWORDS8" fgColor="000000" bgColor="FFFFFF" fontStyle="0" nesting="0" />

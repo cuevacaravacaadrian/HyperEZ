@@ -1,5 +1,3 @@
-// Novedades del lenguaje en 0.7 y casos límite de las optimizaciones del compilador
-
 test("for: cambiar la variable dentro no altera las vueltas", () => {
     var vistos = []
     for i in 0..5 {
@@ -72,13 +70,13 @@ test("repetir listas con *", () => {
     assertEqual([1] * 0, [])
     var tablero = range(3).toList().map(i => ["."] * 3)
     tablero[0][0] = "X"
-    assertEqual(tablero[1][0], ".") // filas independientes
+    assertEqual(tablero[1][0], ".")
 })
 
 test("text.indexOf con posición inicial", () => {
     assertEqual("a-b-c".indexOf("-"), 1)
     assertEqual("a-b-c".indexOf("-", 2), 3)
-    assertEqual("ñu-ñu".indexOf("ñu", 1), 3) // posiciones en caracteres
+    assertEqual("ñu-ñu".indexOf("ñu", 1), 3)
     assertEqual("abc".indexOf("x", 0), -1)
     assertEqual("abc".indexOf("a", 10), -1)
 })

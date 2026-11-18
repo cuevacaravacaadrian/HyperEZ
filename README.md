@@ -10,12 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://cuevacaravacaadrian.github.io/HyperEZ/descargar.html"><img src="https://img.shields.io/badge/%E2%AC%87%20Descargar%20HyperEZ-2f9a3a?style=for-the-badge" alt="Descargar HyperEZ"></a>
-  <a href="https://cuevacaravacaadrian.github.io/HyperEZ/editor/index.html"><img src="https://img.shields.io/badge/%E2%96%B6%20Pru%C3%A9balo%20en%20el%20navegador-0f1424?style=for-the-badge" alt="Pruébalo en el navegador"></a>
+  <a href="https://github.com/cuevacaravacaadrian/HyperEZ/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87%20Descargar%20HyperEZ-2f9a3a?style=for-the-badge" alt="Descargar HyperEZ"></a>
 </p>
 
 <p align="center">
-  <a href="https://cuevacaravacaadrian.github.io/HyperEZ/"><b>La web</b></a> ·
   <a href="docs/empezar/instalacion.md"><b>Instalar</b></a> ·
   <a href="docs/empezar/primeros-pasos.md"><b>Primeros pasos</b></a> ·
   <a href="docs/GUIA.md"><b>Guía</b></a> ·
@@ -24,21 +22,15 @@
   <a href="CHANGELOG.md"><b>Novedades</b></a>
 </p>
 
-**HyperEZ** es un lenguaje de programación con mensajes en español, pensado para aprender a programar y para hacer de todo: juegos, inteligencia artificial, webs, datos, gráficos, sonido, scripts del sistema y herramientas de bajo nivel. Trae su propio editor, su biblioteca completa y sus herramientas en una sola instalación.
+**HyperEZ** es un lenguaje de programación con mensajes en español, pensado para aprender a programar y para hacer de todo: juegos, inteligencia artificial, webs, datos, gráficos, sonido, scripts del sistema y herramientas de bajo nivel. Trae su biblioteca completa, un servidor de lenguaje y sus herramientas en una sola instalación, y se integra en tu sistema y en tus editores como cualquier lenguaje profesional.
 
 ## 🚀 Empieza en un minuto
 
-1. Descarga **[HyperEZ-Setup-0.9.0.exe](https://github.com/cuevacaravacaadrian/HyperEZ/releases/latest)** y pulsa **Instalar** (no necesita administrador).
-2. Al terminar se abre **HyperEZ Editor** con tu primer programa.
-3. Pulsa **F5**. Ya está.
+1. Descarga **[HyperEZ-Setup-1.0.0.exe](https://github.com/cuevacaravacaadrian/HyperEZ/releases/latest)** y pulsa **Instalar** (no necesita administrador).
+2. Crea un archivo `hola.hez` con **el editor que quieras**: VS Code, Notepad++, Sublime Text, Vim o el Bloc de notas.
+3. Ejecútalo con doble clic o con `hyper hola.hez` en una terminal.
 
-<p align="center">
-  <img src="docs/img/editor.png" alt="HyperEZ Editor: fondo blanco, colores, números de línea y panel de errores" width="88%">
-</p>
-
-El editor es clásico y sencillo: barra de herramientas, **pestañas**, colores, errores mientras escribes (con la línea y cómo arreglarlo), **panel de salida** (Mayús+F5) para ver el resultado sin salir, autocompletado con **Ctrl+Espacio**, formato con **Ctrl+Mayús+F**, imprimir, plantillas y todos los ejemplos. Los programas se guardan como **`.hez`**, y cualquier `.hez` o `.hz` se ejecuta con doble clic. Todo en [HyperEZ Editor](docs/herramientas/editor.md).
-
-> El lenguaje se instala integrado en Windows (archivos, `PATH`, menú Inicio, *Win+R → hyper*); HyperEZ Editor y la extensión de VS Code son complementos que puedes desmarcar.
+Instalar HyperEZ **registra el lenguaje** en el sistema: Windows sabe qué es un `.hez` (icono, *Ejecutar*, *Editar*, *Nuevo → Programa HyperEZ*), la orden `hyper` funciona en cualquier terminal y tus editores colorean HyperEZ sin instalar extensiones. Detalles en la [guía de instalación](docs/empezar/instalacion.md).
 
 ```hz
 class Jugador {
@@ -66,19 +58,26 @@ error[E0205]: No existe nada llamado 'pirnt'
 
 | Sistema | Cómo |
 |---|---|
-| **Windows** | **`HyperEZ-Setup-0.9.0.exe`** de la [última versión](https://github.com/cuevacaravacaadrian/HyperEZ/releases/latest): HyperEZ, HyperEZ Editor, ejemplos, documentación y la extensión de VS Code. |
-| **Linux / macOS** | `HyperEZ-0.9.0-linux-x64.tar.gz` (o `macos-arm64`): descomprímelo y ejecuta `sh install.sh`. |
-| **VS Code** | Lo instala el instalador de Windows; o búscala en el [Marketplace](https://marketplace.visualstudio.com/items?itemName=hyperez.hyperezprogramminglanguagevscodeextension): `code --install-extension hyperez.hyperezprogramminglanguagevscodeextension`. |
+| **Windows** | **`HyperEZ-Setup-1.0.0.exe`** de la [última versión](https://github.com/cuevacaravacaadrian/HyperEZ/releases/latest): registra el lenguaje, los archivos `.hez` y tus editores. |
+| **Linux / macOS** | `HyperEZ-1.0.0-linux-x64.tar.gz` (o `macos-arm64`): descomprímelo y ejecuta `sh install.sh`. |
+| **VS Code** | Lo configura el instalador de Windows; o búscalo en el [Marketplace](https://marketplace.visualstudio.com/items?itemName=hyperez.hyperezprogramminglanguagevscodeextension). |
 
-En Windows, los `.hez` y `.hz` se abren **siempre** con HyperEZ (doble clic = ejecutar) y el clic derecho ofrece *Editar con HyperEZ Editor*, *Editar con VS Code*, *Comprobar errores* y *Ejecutar y repetir al guardar*; en cualquier carpeta, *Nuevo → Programa HyperEZ* y *Abrir HyperEZ aquí*. Detalles en la [guía de instalación](docs/empezar/instalacion.md).
+| Editor | Qué obtienes al instalar HyperEZ |
+|---|---|
+| Visual Studio Code | colores, errores en vivo, autocompletado, ir a la definición, formato, **F5** |
+| Notepad++, Sublime Text, Vim, Neovim | colores y reconocimiento de `.hez` sin extensiones |
+| gedit, GNOME Text Editor, Kate, nano (Linux) | colores y reconocimiento de `.hez` sin extensiones |
+| Cualquier editor con LSP (Helix, Zed, Emacs…) | todo, con el servidor `hyper lsp` |
+| Bloc de notas o cualquier editor de texto | los `.hez` son texto: se editan y se ejecutan con doble clic |
 
-## ⚡ Tres formas de programar
+## ⚡ Formas de programar
 
 | | Para quién | Cómo |
 |---|---|---|
-| **HyperEZ Editor** | para empezar: sencillo y clásico | menú Inicio o escritorio → escribe → **F5** |
+| **Tu editor favorito** | para todo | escribe un `.hez` y ejecútalo con `hyper archivo.hez` o con doble clic |
 | **Visual Studio Code** | para proyectos grandes | errores, autocompletado, F12, F2, botones **▶ Ejecutar · ⟳ Repetir · ✓ Comprobar** encima del código |
 | **Consola interactiva** | para probar ideas | escribe `hyper`: cada línea se ejecuta al pulsar Intro |
+| **HyperEZ Editor** (opcional) | para empezar en Windows | marca el complemento en el instalador → escribe → **F5** |
 
 ```text
 hz> var precios = [3.5, 12, 7.25]
@@ -90,9 +89,25 @@ hz> precios.map(p => round(p * 1.21, 2))
 
 Y además `hyper watch juego.hez` (vuelve a ejecutar cada vez que guardas) y `hyper new mi-juego --tipo juego|app|ia|script` (un proyecto ordenado que funciona desde el primer momento).
 
-## 🎓 Aprende jugando: la Academia HyperEZ
+## 🎮 El lenguaje de LPO Engine
 
-**[La Academia HyperEZ](https://cuevacaravacaadrian.github.io/HyperEZ/aprender.html)** es un curso gratis en el navegador: 10 misiones con historia, retos que comprueba HyperEZ de verdad, experiencia, medallas y un examen final. Al aprobar, consigues tu **certificado** con un código QR que cualquiera puede **[verificar](https://cuevacaravacaadrian.github.io/HyperEZ/verificar.html)**.
+**LPO Engine**, el motor de juegos 2D y 3D de LPO Studios, usa **HyperEZ completo** como lenguaje de lógica. HyperEZ trae su API entera como biblioteca oficial (`lpo`: 78 clases, servicios, eventos y enumeraciones), así que los scripts del motor (`.server.hz`, `.client.hz`, `.module.hz`) se escriben, se comprueban y se prueban con `hyper` y VS Code, sin abrir el motor:
+
+```hz
+from lpo import *
+
+var lava = Part(workspace)
+lava.material = Material.Neon
+
+on lava.touched as e {
+    e.other.parent?.findChildOfClass("Humanoid")?.takeDamage(25)
+}
+
+on game.players.playerAdded as e { print("Bienvenido, ${e.player.name}") }
+game.players.join("Ana")
+```
+
+Guía en [LPO Engine](docs/biblioteca/lpo-engine.md), [referencia completa](docs/biblioteca/lpo-engine-api.md) y un juego de ejemplo con la estructura del motor en [`examples/lpo-engine`](examples/lpo-engine).
 
 ## 🖥️ Hasta un sistema operativo: HyperEZX
 
@@ -102,7 +117,7 @@ Y además `hyper watch juego.hez` (vuelve a ejecutar cada vez que guardas) y `hy
 
 ## 📁 Proyectos con carpetas propias
 
-Los proyectos de HyperEZ tienen **sus propias carpetas**, cada una con su icono en HyperEZ Editor, en el navegador y en VS Code:
+Los proyectos de HyperEZ tienen **sus propias carpetas**, cada una con su icono en VS Code y en HyperEZ Editor:
 
 ```text
 mi-juego/
@@ -313,9 +328,8 @@ Requisitos y detalles en [CONTRIBUTING.md](CONTRIBUTING.md). Cómo está hecho p
 | [`src/lib`](src/lib) | bibliotecas escritas en HyperEZ: `ai`, `stats`, `csv`, `cli`, `web`, `html`, `db`, `audio`, `x86`, `collections`, `algo`, `template`, `markdown`, `ini`, `log`, `svg`, `zip`, `site` |
 | [`src/tools`](src/tools) | la orden `hyper`: CLI, consola interactiva, watch, servidor de lenguaje, integración con el sistema |
 | [`src/editor`](src/editor) | HyperEZ Editor (Windows) |
-| [`editors`](editors) | extensión de VS Code, colores para Notepad++, Sublime y Vim, highlight.js y el kit para GitHub Linguist |
+| [`editors`](editors) | extensión de VS Code, sintaxis para Notepad++, Sublime Text, Vim, nano, gedit y Kate, highlight.js y el kit para GitHub Linguist |
 | [`actions`](actions/setup-hyperez) | la acción `setup-hyperez` para usar HyperEZ en GitHub Actions |
-| [`projects/web`](projects/web) | la web de HyperEZ y el editor en el navegador (HyperEZ en WebAssembly), generados con HyperEZ |
 | [`packaging`](packaging) | instalador de Windows, paquetes de Linux y macOS, iconos |
 | [`examples`](examples) | ejemplos por áreas: juegos, algoritmos, IA, datos, web, gráficos, audio, sistema... |
 | [`tests`](tests) | pruebas del lenguaje, las bibliotecas, la consola, el formato y los errores |

@@ -17,6 +17,7 @@ var o2 = enemigos.Orco()
 print(VELOCIDAD, enemigos.VELOCIDAD)
 ```
 
+- `from módulo import *` trae todo lo que exporta el módulo (salvo los nombres que ya declara el archivo).
 - Las rutas entre comillas son relativas al archivo que importa.
 - Un módulo se ejecuta una sola vez, la primera vez que se importa.
 - Los nombres importados conservan sus tipos: el editor autocompleta y avisa de errores igual que en el propio archivo.
@@ -32,7 +33,9 @@ Sin comillas, `import nombre` busca, por este orden:
 
 Así, las pruebas de `hypertests/` importan los módulos de `hypercode/` igual que `main.hez`. Más en [Proyectos y carpetas](../herramientas/proyectos.md).
 
-Un punto separa carpetas: `import juego.enemigos` busca `juego/enemigos.hz`.
+Un punto separa carpetas: `import juego.enemigos` busca `juego/enemigos.hz` (y también `juego/enemigos.module.hz`, los módulos de [LPO Engine](../biblioteca/lpo-engine.md)).
+
+Los archivos `.server.hz`, `.client.hz` y `.module.hz` son scripts de LPO Engine: importan `lpo` solos y buscan los módulos también desde la carpeta del juego (`import ReplicatedStorage.Config`).
 
 ## Bibliotecas incluidas
 
@@ -49,6 +52,7 @@ Vienen dentro de `hyper` (no hay que instalar nada) y están escritas en HyperEZ
 | `html` | generar HTML con escape automático |
 | `db` | base de datos de documentos guardada en JSON |
 | `audio` | sonidos y música en archivos WAV |
+| `lpo` | las 78 clases y los servicios de [LPO Engine](../biblioteca/lpo-engine.md), con simulación para probar juegos |
 
 ```hz
 import stats

@@ -1,5 +1,3 @@
-// Bytes, Hash y Base64.
-
 test("Bytes: crear, leer y escribir", () => {
     var b = Bytes([1, 2, 3])
     assertEqual(b.length, 3)

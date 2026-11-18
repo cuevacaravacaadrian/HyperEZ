@@ -1,6 +1,3 @@
-// Más biblioteca estándar (0.7): matemáticas (mcd, primos, ruido de Perlin...), textos (tildes, slug,
-// distancia entre palabras...), listas, mapas y conjuntos (operaciones de conjuntos, conteos, ventanas),
-// números (formato con separador de miles, romanos), fechas (sumar días, nombres en español) y JSON en archivos.
 #include "lang/stdlib/native.h"
 
 #include <algorithm>
@@ -20,7 +17,6 @@ ObjMap* M(Value* args) { return static_cast<ObjMap*>(args[-1].o); }
 const std::string& S(Value* args) { return asString(args[-1])->str; }
 double N(Value* args) { return args[-1].n; }
 
-// Llama a una función del script con solo los argumentos que declara (como en extra.cpp)
 Value callFlex(VM& vm, Value fn, int argc, Value* args) {
     Value target = isObjType(fn, OT::Bound) ? static_cast<ObjBound*>(fn.o)->method : fn;
     int n = argc;
@@ -42,7 +38,7 @@ ObjList* listArg(VM& vm, Value* args, int argc, int i, const char* fname) {
 ObjMap* setArg(VM& vm, Value* args, int argc, int i, const char* fname) {
     Value v = optArg(args, argc, i);
     if (isObjType(v, OT::Map)) return static_cast<ObjMap*>(v.o);
-    if (isObjType(v, OT::List)) { // una lista también vale: se convierte en conjunto
+    if (isObjType(v, OT::List)) {
         ObjMap* s = vm.newMap(true);
         for (auto& x : static_cast<ObjList*>(v.o)->items) s->set(x, Value::boolean(true));
         return s;
@@ -63,10 +59,6 @@ std::string fromCodepoints(const std::vector<uint32_t>& cps, size_t a = 0, size_
 }
 std::string lowerOf(VM& vm, const std::string& s) { return asString(vm.callMethod(vm.str(s), "lower", 0, nullptr))->str; }
 std::string upperOf(VM& vm, const std::string& s) { return asString(vm.callMethod(vm.str(s), "upper", 0, nullptr))->str; }
-
-// ---------------------------------------------------------------------------
-// Matemáticas
-// ---------------------------------------------------------------------------
 
 double intArg(VM& vm, Value* args, int argc, int i, const char* fname) {
     double x = argNum(vm, args, argc, i, fname);
@@ -132,11 +124,10 @@ NATIVE(n_cosh) { return Value(std::cosh(argNum(vm, args, argc, 0, "cosh"))); }
 NATIVE(n_tanh) { return Value(std::tanh(argNum(vm, args, argc, 0, "tanh"))); }
 NATIVE(n_randomGaussian) {
     double mean = argNum(vm, args, argc, 0, "randomGaussian", 0), sd = argNum(vm, args, argc, 1, "randomGaussian", 1);
-    double u1 = std::max(randomUnit(), 1e-300), u2 = randomUnit(); // Box-Muller (usa la semilla de randomSeed)
+    double u1 = std::max(randomUnit(), 1e-300), u2 = randomUnit();
     return Value(mean + sd * std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2));
 }
 
-// Ruido de Perlin mejorado (el mismo en todos los sistemas): terrenos, nubes, movimientos naturales
 const uint8_t kPerm[256] = {
     151, 160, 137, 91,  90,  15,  131, 13,  201, 95,  96,  53,  194, 233, 7,   225, 140, 36,  103, 30,  69,  142, 8,   99,  37,  240,
     21,  10,  23,  190, 6,   148, 247, 120, 234, 75,  0,   26,  197, 62,  94,  252, 219, 203, 117, 35,  11,  32,  57,  177, 33,  88,
@@ -183,11 +174,6 @@ NATIVE(n_ord) {
     return Value((double)utf8Decode(s, i));
 }
 
-// ---------------------------------------------------------------------------
-// Textos
-// ---------------------------------------------------------------------------
-
-// Letra sin tilde ni diéresis (á → a, Ñ → N, ç → c, ß → ss...); 0 si no cambia
 const char* plainLetter(uint32_t c) {
     if (c < 0xC0) return nullptr;
     static const char* latin1[64] = {"A", "A", "A", "A", "A", "A", "AE", "C", "E", "E", "E", "E", "I", "I", "I", "I",
@@ -215,7 +201,6 @@ std::string stripAccents(const std::string& s) {
 }
 NATIVE(t_removeAccents) { UNUSED; return vm.str(stripAccents(S(args))); }
 
-// Palabras para cambiar de estilo: separa por espacios, guiones, _ y cambios de minúscula a mayúscula
 std::vector<std::string> splitIdentifier(const std::string& s) {
     std::vector<std::string> words;
     std::string cur;
@@ -244,7 +229,6 @@ std::string capitalizeWord(VM& vm, const std::string& w) {
 }
 NATIVE(t_title) {
     UNUSED;
-    // Mayúscula al principio de cada palabra; respeta los espacios originales
     const std::string& s = S(args);
     std::string out, word;
     auto flush = [&] { out += capitalizeWord(vm, word); word.clear(); };
@@ -306,7 +290,7 @@ NATIVE(t_wrap) {
     const std::string& s = S(args);
     std::string out;
     size_t lineStart = 0;
-    for (size_t p = 0; p <= s.size();) { // cada párrafo por separado
+    for (size_t p = 0; p <= s.size();) {
         size_t e = s.find('\n', p);
         if (e == std::string::npos) e = s.size();
         std::string para = s.substr(p, e - p), line;
@@ -432,10 +416,6 @@ NATIVE(t_reverseWords) {
     return vm.str(out);
 }
 
-// ---------------------------------------------------------------------------
-// Listas
-// ---------------------------------------------------------------------------
-
 NATIVE(l_countBy) {
     Value fn = optArg(args, argc, 0);
     std::vector<Value> items = L(args)->items;
@@ -501,7 +481,6 @@ NATIVE(l_rotate) {
     }
     return Value::object(out);
 }
-// Operaciones de conjuntos sobre listas (conservan el orden de la primera)
 Value listSetOp(VM& vm, Value* args, int argc, int op, const char* fname) {
     ObjList* other = listArg(vm, args, argc, 0, fname);
     ObjMap* inOther = vm.newMap(true);
@@ -654,10 +633,6 @@ NATIVE(l_insertSorted) {
     return Value((double)pos);
 }
 
-// ---------------------------------------------------------------------------
-// Mapas
-// ---------------------------------------------------------------------------
-
 NATIVE(m_pick) {
     ObjList* keys = listArg(vm, args, argc, 0, "pick");
     ObjMap* m = M(args);
@@ -688,7 +663,6 @@ NATIVE(m_update) {
     m->set(key, r);
     return r;
 }
-// Recorre las entradas vivas llamando a f(valor, clave); para any/all/count/find
 template <class F> void eachEntry(VM& vm, ObjMap* m, Value fn, F onResult) {
     std::vector<std::pair<Value, Value>> es;
     for (auto& e : m->entries) if (e.alive) es.push_back({e.key, e.value});
@@ -753,10 +727,6 @@ Value sortedMap(VM& vm, ObjMap* m, bool byValue, bool desc, const char* fname) {
 NATIVE(m_sortByKey) { return sortedMap(vm, M(args), false, argBool(args, argc, 0, false), "sortByKey"); }
 NATIVE(m_sortByValue) { return sortedMap(vm, M(args), true, argBool(args, argc, 0, false), "sortByValue"); }
 
-// ---------------------------------------------------------------------------
-// Conjuntos (set)
-// ---------------------------------------------------------------------------
-
 Value setOp(VM& vm, Value* args, int argc, int op, const char* fname) {
     ObjMap* a = M(args);
     ObjMap* b = setArg(vm, args, argc, 0, fname);
@@ -809,10 +779,6 @@ NATIVE(s_filter) {
     return Value::object(out);
 }
 
-// ---------------------------------------------------------------------------
-// Números
-// ---------------------------------------------------------------------------
-
 NATIVE(num_isEven) { UNUSED; double x = N(args); return Value::boolean(std::floor(x) == x && std::fmod(x, 2.0) == 0); }
 NATIVE(num_isOdd) { UNUSED; double x = N(args); return Value::boolean(std::floor(x) == x && std::fabs(std::fmod(x, 2.0)) == 1); }
 NATIVE(num_clamp) {
@@ -834,7 +800,6 @@ NATIVE(num_toRoman) {
     for (int i = 0; i < 13; i++) while (n >= vals[i]) { out += syms[i]; n -= vals[i]; }
     return vm.str(out);
 }
-// 1234567.891.format(2) → "1.234.567,89" (estilo español); separadores configurables
 NATIVE(num_format) {
     int dec = (int)std::clamp(argNum(vm, args, argc, 0, "format", 0), 0.0, 20.0);
     std::string thou = argStr(vm, args, argc, 1, "format", "."), point = argStr(vm, args, argc, 2, "format", ",");
@@ -878,10 +843,6 @@ NATIVE(num_toPercent) {
     return vm.str(s + " %");
 }
 
-// ---------------------------------------------------------------------------
-// Fechas (Time)
-// ---------------------------------------------------------------------------
-
 std::tm localTime(double t) {
     std::time_t tt = (std::time_t)std::floor(t);
     std::tm tm{};
@@ -907,7 +868,7 @@ NATIVE(time_addDays) {
     std::tm tm = localTime(t);
     double frac = t - std::floor(t);
     tm.tm_mday += (int)n;
-    tm.tm_isdst = -1; // mktime corrige el horario de verano
+    tm.tm_isdst = -1;
     return Value((double)std::mktime(&tm) + frac);
 }
 NATIVE(time_addMonths) {
@@ -916,7 +877,7 @@ NATIVE(time_addMonths) {
     int total = tm.tm_year * 12 + tm.tm_mon + (int)n;
     tm.tm_year = total / 12;
     tm.tm_mon = total % 12;
-    tm.tm_mday = std::min(tm.tm_mday, monthDays(tm.tm_year + 1900, tm.tm_mon + 1)); // 31 de enero + 1 mes = 28/29 de febrero
+    tm.tm_mday = std::min(tm.tm_mday, monthDays(tm.tm_year + 1900, tm.tm_mon + 1));
     tm.tm_isdst = -1;
     return Value((double)std::mktime(&tm));
 }
@@ -946,7 +907,6 @@ NATIVE(time_dayName) {
     int d = (int)argNum(vm, args, argc, 0, "Time.dayName");
     return vm.str(kDays[((d % 7) + 7) % 7]);
 }
-// "2026-11-04", "2026-11-04 18:30", "2026-11-04T18:30:05", "04/11/2026" y "4/11/2026 18:30"
 NATIVE(time_parse) {
     std::string s = argStr(vm, args, argc, 0, "Time.parse");
     int y = 0, mo = 0, d = 0, h = 0, mi = 0, se = 0;
@@ -1003,10 +963,6 @@ NATIVE(time_ago) {
     return vm.str((future ? "dentro de " : "hace ") + what);
 }
 
-// ---------------------------------------------------------------------------
-// JSON en archivos
-// ---------------------------------------------------------------------------
-
 Value jsonFn(VM& vm, const char* name) {
     Value json = vm.builtins[vm.builtinSlot("JSON")];
     return vm.getProperty(json, vm.intern(name), false);
@@ -1029,10 +985,9 @@ NATIVE(json_save) {
     return Value();
 }
 
-} // namespace
+}
 
 void registerMore(VM& vm) {
-    // Matemáticas
     vm.defineGlobalFn("gcd", "(a: number, b: number): number", "Máximo común divisor: gcd(12, 18) es 6.", n_gcd);
     vm.defineGlobalFn("lcm", "(a: number, b: number): number", "Mínimo común múltiplo: lcm(4, 6) es 12.", n_lcm);
     vm.defineGlobalFn("factorial", "(n: number): number", "n! = 1 × 2 × ... × n: factorial(5) es 120.", n_factorial);
@@ -1053,7 +1008,6 @@ void registerMore(VM& vm) {
     vm.defineGlobalFn("chr", "(codigo: number): text", "Carácter con ese código Unicode: chr(65) es \"A\", chr(241) es \"ñ\".", n_chr);
     vm.defineGlobalFn("ord", "(caracter: text): number", "Código Unicode del primer carácter: ord(\"A\") es 65.", n_ord);
 
-    // text
     ObjClass* t = vm.textClass;
     vm.defineMethod(t, "removeAccents", "(): text", "Quita tildes y diéresis: \"Canción pingüino\" → \"Cancion pinguino\" (ñ → n).", t_removeAccents);
     vm.defineMethod(t, "title", "(): text", "Mayúscula al principio de cada palabra: \"hola mundo\" → \"Hola Mundo\".", t_title);
@@ -1075,7 +1029,6 @@ void registerMore(VM& vm) {
     vm.defineMethod(t, "codes", "(): list<number>", "Códigos Unicode de cada carácter (lo contrario de chr).", t_codes);
     vm.defineMethod(t, "reverseWords", "(): text", "Invierte el orden de las palabras: \"uno dos tres\" → \"tres dos uno\".", t_reverseWords);
 
-    // list
     ObjClass* l = vm.listClass;
     vm.defineMethod(l, "countBy", "(f?: function): map", "Cuántas veces aparece cada valor (o cada f(elemento)): [\"a\", \"b\", \"a\"].countBy() es {a: 2, b: 1}.",
                     l_countBy);
@@ -1104,7 +1057,6 @@ void registerMore(VM& vm) {
     vm.defineMethod(l, "median", "(): number", "Mediana: el valor del medio una vez ordenados.", l_median);
     vm.defineMethod(l, "insertSorted", "(valor: any): number", "Inserta manteniendo la lista ordenada y devuelve la posición.", l_insertSorted);
 
-    // map
     ObjClass* m = vm.mapClass;
     vm.defineMethod(m, "pick", "(claves: list): map", "Mapa nuevo solo con esas claves.", m_pick);
     vm.defineMethod(m, "omit", "(claves: list): map", "Mapa nuevo sin esas claves.", m_omit);
@@ -1119,7 +1071,6 @@ void registerMore(VM& vm) {
     vm.defineMethod(m, "sortByKey", "(descendente?: bool = false): map", "Mapa nuevo ordenado por las claves.", m_sortByKey);
     vm.defineMethod(m, "sortByValue", "(descendente?: bool = false): map", "Mapa nuevo ordenado por los valores (p. ej. un ranking).", m_sortByValue);
 
-    // set
     ObjClass* s = vm.setClass;
     vm.defineMethod(s, "union", "(otro: set|list): set", "Elementos de los dos conjuntos.", s_union);
     vm.defineMethod(s, "intersect", "(otro: set|list): set", "Elementos comunes.", s_intersect);
@@ -1131,7 +1082,6 @@ void registerMore(VM& vm) {
     vm.defineMethod(s, "map", "(f: function): set", "Conjunto con f(elemento).", s_map);
     vm.defineMethod(s, "filter", "(f: function): set", "Conjunto con los elementos que cumplen f.", s_filter);
 
-    // number
     ObjClass* n = vm.numberClass;
     vm.defineMethod(n, "isEven", "(): bool", "¿Es par?", num_isEven);
     vm.defineMethod(n, "isOdd", "(): bool", "¿Es impar?", num_isOdd);
@@ -1144,7 +1094,6 @@ void registerMore(VM& vm) {
     vm.defineMethod(n, "times", "(f: function): void", "Repite f n veces (recibe 0, 1, 2...): (3).times(i => print(i)).", num_times);
     vm.defineMethod(n, "toPercent", "(decimales?: number = 0): text", "Porcentaje: (0.256).toPercent(1) es \"25,6 %\".", num_toPercent);
 
-    // Time
     ObjModule* time = existingModule(vm, "Time");
     vm.defineFn(time, "today", "(): number", "Hoy a las 00:00 (hora local).", time_today);
     vm.defineFn(time, "addDays", "(momento: number, dias: number): number", "Suma (o resta) días respetando el horario de verano.", time_addDays);
@@ -1160,11 +1109,10 @@ void registerMore(VM& vm) {
     vm.defineFn(time, "duration", "(segundos: number): text", "Duración legible: Time.duration(3725) es \"1 h 2 min 5 s\".", time_duration);
     vm.defineFn(time, "ago", "(momento: number, ahora?: number): text", "Tiempo relativo: \"hace 5 minutos\", \"dentro de 2 días\".", time_ago);
 
-    // JSON en archivos
     ObjModule* json = existingModule(vm, "JSON");
     vm.defineFn(json, "load", "(ruta: text): any", "Lee un archivo JSON y lo convierte en mapas y listas.", json_load,
                 "var ajustes = JSON.load(\"ajustes.json\")");
     vm.defineFn(json, "save", "(ruta: text, valor: any, sangria?: number = 2): void", "Guarda un valor como archivo JSON (legible).", json_save);
 }
 
-} // namespace hz
+}

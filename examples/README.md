@@ -27,6 +27,7 @@ Programas completos, organizados por áreas. Ábrelos con **HyperEZ Editor** (Ar
 | | [herramientas/comprimir.hz](herramientas/comprimir.hz) | crear, listar y extraer archivos .zip |
 | **Sistema** | [sistema/organizar.hz](sistema/organizar.hz) | ordenar archivos en carpetas según su tipo |
 | | [sistema/info.hz](sistema/info.hz) | información del sistema y otros programas |
+| **LPO Engine** | [lpo-engine/](lpo-engine) | un juego con la estructura del motor: lava, marcador, puerta, controles y monedas 2D |
 | **Sistemas operativos** | [sistemas/sector_arranque.hz](sistemas/sector_arranque.hz) | un sector de arranque x86 que arranca en QEMU |
 
 Los archivos `.out` junto a cada ejemplo son su salida esperada: `hyper test examples` comprueba que todos siguen funcionando.

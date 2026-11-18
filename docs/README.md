@@ -3,7 +3,6 @@
 ## Empezar
 
 - [Instalación](empezar/instalacion.md): Windows, Linux, macOS y VS Code.
-- [Academia HyperEZ](https://cuevacaravacaadrian.github.io/HyperEZ/aprender.html): aprende jugando, con misiones, retos y certificado (en el navegador).
 - [Primeros pasos](empezar/primeros-pasos.md): HyperEZ Editor, consola interactiva, VS Code, la terminal y proyectos.
 - [Guía rápida](GUIA.md): todo el lenguaje en una página.
 - [Tutorial: un juego paso a paso](empezar/tutorial-juego.md)
@@ -42,13 +41,13 @@
 | Gráficos y sonido | [graficos-sonido.md](biblioteca/graficos-sonido.md) |
 | Consola, juegos y herramientas | [consola.md](biblioteca/consola.md) |
 | Sistemas operativos y bajo nivel | [sistemas-operativos.md](biblioteca/sistemas-operativos.md) |
+| Juegos con LPO Engine | [lpo-engine.md](biblioteca/lpo-engine.md) · [referencia](biblioteca/lpo-engine-api.md) |
 | **Referencia de toda la API** | [API.md](biblioteca/API.md) |
 
 ## Herramientas
 
 - [Proyectos y carpetas](herramientas/proyectos.md): `hypersettings`, `hypercode`, `hypertests`, `hyperlibs`, `hypertools`... y `proyecto.json`.
 - [HyperEZ Editor](herramientas/editor.md): el editor clásico que se instala con HyperEZ.
-- [El editor en el navegador](herramientas/editor-web.md): HyperEZ sin instalar nada, en la [web](https://cuevacaravacaadrian.github.io/HyperEZ/).
 - [La orden `hyper`](herramientas/cli.md): ejecutar, comprobar, probar, formatear, servir webs, bytecode...
 - [Otros editores](../editors/README.md): Notepad++, Sublime Text, Vim, Neovim, Helix, highlight.js y GitHub.
 - [Consola interactiva](herramientas/consola-interactiva.md)

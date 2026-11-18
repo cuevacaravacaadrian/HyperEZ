@@ -1,6 +1,3 @@
-// Datos binarios: Bytes (bloques de bytes con lectura y escritura de enteros y decimales),
-// Hash (crc32, fnv1a, sha256, sha1, md5, hmac, uuid), Base64 y File.readBytes/writeBytes.
-// Base para formatos de archivo, protocolos, emuladores e imágenes de disco.
 #include "lang/stdlib/native.h"
 #include "core/process.h"
 
@@ -27,7 +24,6 @@ static Buf& asBuf(VM& vm, const Value& v, const char* fname) {
     if (!isBytes(vm, v)) vm.raise(std::string(fname) + ": se esperaba Bytes, no " + vm.typeName(v));
     return *static_cast<Buf*>(static_cast<ObjForeign*>(v.o)->ptr);
 }
-// Texto o Bytes como secuencia de bytes
 static Buf dataOf(VM& vm, const Value& v, const char* fname) {
     if (isString(v)) { auto& s = asString(v)->str; return Buf(s.begin(), s.end()); }
     if (isBytes(vm, v)) return *static_cast<Buf*>(static_cast<ObjForeign*>(v.o)->ptr);
@@ -49,8 +45,6 @@ static size_t indexArg(VM& vm, Value* args, int argc, int i, size_t len, size_t 
 
 Value newBytes(VM& vm, Buf data) { return makeBytes(vm, std::move(data)); }
 Buf* bytesData(VM& vm, const Value& v) { return isBytes(vm, v) ? static_cast<Buf*>(static_cast<ObjForeign*>(v.o)->ptr) : nullptr; }
-
-// ---- Bytes --------------------------------------------------------------
 
 NATIVE(c_bytes) {
     Buf b;
@@ -158,7 +152,6 @@ NATIVE(b_toString) {
     return vm.str("Bytes(" + std::to_string(b.size()) + (b.empty() ? "" : ": " + toHex(head, " ")) + (b.size() > 16 ? " ...)" : ")"));
 }
 
-// Lectura y escritura de números: entero sin signo / con signo de 8, 16, 32 y 64 bits, y decimales de 32 y 64.
 template <class T> static T loadLE(const uint8_t* p, bool little) {
     T v{};
     uint8_t tmp[sizeof(T)];
@@ -226,8 +219,6 @@ NATIVE(b_fromHex) {
     return makeBytes(vm, std::move(b));
 }
 
-// ---- Base64 -------------------------------------------------------------
-
 static const char* kB64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 static std::string base64Encode(const Buf& in) {
     std::string out;
@@ -246,7 +237,7 @@ static bool base64Decode(const std::string& in, Buf& out) {
     for (char c : in) {
         if (c == '=' || c == '\n' || c == '\r' || c == ' ') continue;
         const char* p = std::strchr(kB64, c);
-        if (c == '-') p = kB64 + 62; // variante para URL
+        if (c == '-') p = kB64 + 62;
         else if (c == '_') p = kB64 + 63;
         if (!p || !c) return false;
         val = (val << 6) + (int)(p - kB64);
@@ -276,8 +267,6 @@ NATIVE(b64_decodeBytes) {
     return makeBytes(vm, std::move(b));
 }
 
-// ---- Hash ---------------------------------------------------------------
-
 static uint32_t crc32(const Buf& d) {
     static uint32_t table[256];
     static bool init = false;
@@ -299,7 +288,6 @@ static uint32_t fnv1a(const Buf& d) {
     return h;
 }
 
-// SHA-256 (FIPS 180-4)
 static Buf sha256(const Buf& msg) {
     static const uint32_t k[64] = {
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01,
@@ -342,7 +330,6 @@ static Buf sha256(const Buf& msg) {
     return out;
 }
 
-// SHA-1 (FIPS 180-4): el de Git; no usar para seguridad nueva
 static Buf sha1(const Buf& msg) {
     uint32_t h[5] = {0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0};
     Buf m = msg;
@@ -373,7 +360,6 @@ static Buf sha1(const Buf& msg) {
     return out;
 }
 
-// MD5 (RFC 1321): sumas de comprobación de descargas antiguas; no usar para seguridad
 static Buf md5(const Buf& msg) {
     static const uint32_t K[64] = {
         0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af,
@@ -417,7 +403,6 @@ static Buf md5(const Buf& msg) {
     return out;
 }
 
-// HMAC-SHA256 (RFC 2104): firmar mensajes con una clave (APIs web, tokens)
 static Buf hmacSha256(Buf key, const Buf& msg) {
     if (key.size() > 64) key = sha256(key);
     key.resize(64, 0);
@@ -445,13 +430,11 @@ NATIVE(hash_uuid) {
     static std::mt19937_64 rng(std::random_device{}() ^ (uint64_t)nowSeconds() ^ (uint64_t)currentProcessId() << 32);
     Buf b(16);
     for (auto& x : b) x = (uint8_t)(rng() & 0xFF);
-    b[6] = (b[6] & 0x0F) | 0x40; // versión 4
-    b[8] = (b[8] & 0x3F) | 0x80; // variante RFC 4122
+    b[6] = (b[6] & 0x0F) | 0x40;
+    b[8] = (b[8] & 0x3F) | 0x80;
     std::string h = toHex(b);
     return vm.str(h.substr(0, 8) + "-" + h.substr(8, 4) + "-" + h.substr(12, 4) + "-" + h.substr(16, 4) + "-" + h.substr(20));
 }
-
-// ---- Números en otras bases ---------------------------------------------
 
 static std::string toBase(VM& vm, double d, int base, int digits, const char* fname) {
     if (base < 2 || base > 36) vm.raise(std::string(fname) + ": la base debe estar entre 2 y 36");
@@ -485,13 +468,11 @@ NATIVE(n_parseInt) {
     double r = 0;
     for (char c : s) {
         int d = std::isdigit((unsigned char)c) ? c - '0' : std::isalpha((unsigned char)c) ? std::tolower((unsigned char)c) - 'a' + 10 : 99;
-        if (d >= base) return Value(); // no es un número en esa base
+        if (d >= base) return Value();
         r = r * base + d;
     }
     return Value(neg ? -r : r);
 }
-
-// ---- File (binario) -----------------------------------------------------
 
 NATIVE(file_readBytes) {
     std::string p = argStr(vm, args, argc, 0, "File.readBytes");
@@ -582,4 +563,4 @@ void registerBinaryLibs(VM& vm) {
     vm.defineFn(file, "writeBytes", "(ruta: text, datos: Bytes|text): void", "Escribe (o reemplaza) un archivo binario.", file_writeBytes);
 }
 
-} // namespace hz
+}

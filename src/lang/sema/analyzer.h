@@ -1,5 +1,3 @@
-// Análisis semántico: resolución de nombres, tipos graduales, diagnósticos
-// y tabla de símbolos (usada también por el servidor de lenguaje).
 #pragma once
 
 #include "lang/syntax/ast.h"
@@ -34,7 +32,7 @@ struct Type {
     ModuleInfo* mod = nullptr;
     EventInfo* ev = nullptr;
     bool nullable = false;
-    bool placeholder = false; // "T": tipo del elemento de la colección receptora
+    bool placeholder = false;
 };
 
 struct SigParam { std::string name; TypeP type; bool optional = false; bool rest = false; std::string def; };
@@ -42,7 +40,7 @@ struct FuncSig {
     std::vector<SigParam> params;
     TypeP ret;
     bool isAsync = false;
-    bool acceptsNamedOptions = false; // nativo: argumentos con nombre -> mapa de opciones
+    bool acceptsNamedOptions = false;
     int minArgs() const { int n = 0; for (auto& p : params) if (!p.optional && !p.rest) n++; return n; }
     int maxArgs() const { for (auto& p : params) if (p.rest) return -1; return (int)params.size(); }
 };
@@ -57,22 +55,22 @@ struct Symbol {
     SymKind kind = SymKind::Variable;
     std::string file;
     SrcLoc loc;
-    std::string detail;   // firma o tipo legible
+    std::string detail;
     std::string doc;
     TypeP type;
-    std::string container; // clase o módulo dueño
+    std::string container;
     bool builtin = false;
     bool used = false;
     bool isStatic = false;
-    bool assignOnce = false; // 'let' global con valor inicial
+    bool assignOnce = false;
     Visibility vis = Visibility::Public;
-    int scopeStart = 0, scopeEnd = 1 << 30; // rango de visibilidad (offsets)
+    int scopeStart = 0, scopeEnd = 1 << 30;
 };
 
 struct MemberInfo {
     std::string name;
     enum Kind : uint8_t { Field, Method, Getter, Setter, Property, Constant, EventM, Submodule } kind = Field;
-    TypeP type;           // tipo del campo o tipo función del método
+    TypeP type;
     bool isStatic = false;
     bool readonly = false;
     bool hasSetter = false;
@@ -88,7 +86,7 @@ struct ClassInfo {
     std::vector<ClassInfo*> interfaces;
     bool isInterface = false, isStruct = false, isNative = false;
     std::map<std::string, MemberInfo> members;
-    std::shared_ptr<FuncSig> ctor;   // nullptr = sin constructor propio
+    std::shared_ptr<FuncSig> ctor;
     Symbol* sym = nullptr;
     std::string doc;
     const MemberInfo* find(const std::string& n) const {
@@ -122,12 +120,9 @@ struct ModuleInfo {
     struct ModuleUnit* unit = nullptr;
 };
 
-// Alcance léxico registrado para el autocompletado.
 struct ScopeRecord { int start = 0, end = 0; std::vector<Symbol*> symbols; };
-// Referencia de un identificador a su símbolo (hover, definición, referencias, renombrar).
 struct RefRecord { SrcLoc loc; Symbol* sym; bool isDecl = false; };
 
-// Unidad de compilación: un archivo .hz con su AST, símbolos y bytecode.
 struct ModuleUnit {
     std::string path;
     std::string name;
@@ -137,14 +132,14 @@ struct ModuleUnit {
     ObjFunction* script = nullptr;
     bool analyzing = false, analyzed = false, compiled = false;
     bool isPrelude = false;
-    ReplSession* repl = nullptr; // entrada de la consola interactiva
+    ReplSession* repl = nullptr;
     std::vector<std::unique_ptr<Symbol>> symbols;
     std::vector<ScopeRecord> scopes;
     std::vector<RefRecord> refs;
     std::vector<std::unique_ptr<ClassInfo>> classes;
     std::vector<std::unique_ptr<EnumInfo>> enums;
     std::vector<std::unique_ptr<EventInfo>> events;
-    std::unique_ptr<ModuleInfo> info; // vista exportada
+    std::unique_ptr<ModuleInfo> info;
     std::map<std::string, int> globalIndex;
     std::vector<std::string> globalNames;
     std::map<std::string, Symbol*> globalSyms;
@@ -153,11 +148,10 @@ struct ModuleUnit {
     Symbol* newSymbol(const std::string& name, SymKind k, SrcLoc loc);
 };
 
-// Mundo estático: tipos y símbolos de la API nativa y del preludio.
 struct World {
     std::map<std::string, std::unique_ptr<ClassInfo>> nativeClasses;
     std::map<std::string, std::unique_ptr<ModuleInfo>> nativeModules;
-    std::map<std::string, TypeP> builtinTypes;      // nombre global -> tipo
+    std::map<std::string, TypeP> builtinTypes;
     std::map<std::string, Symbol*> builtinSyms;
     std::vector<std::unique_ptr<Symbol>> symbols;
     std::map<std::string, ClassInfo*> preludeClasses;
@@ -167,10 +161,9 @@ struct World {
 };
 
 World& worldOf(VM& vm);
-void releaseWorld(VM& vm); // la llama ~VM()
+void releaseWorld(VM& vm);
 void buildWorld(VM& vm);
 
-// Utilidades de tipos
 TypeP tAny();
 TypeP tVoid();
 TypeP tNull();
@@ -228,9 +221,8 @@ private:
     std::vector<ScopeRecord*> scopeStack;
     bool matchBlocksAllowed = false;
     TypeP pendingHandlerType;
-    int topLevelOffset = 0; // posición de la sentencia de nivel superior actual
+    int topLevelOffset = 0;
 
-    // Declaraciones
     void declareGlobals();
     int declareGlobal(const std::string& name, SrcLoc loc, SymKind kind, TypeP type, const std::string& doc = "");
     void buildClass(ClassStmt* c);
@@ -238,7 +230,6 @@ private:
     TypeP resolveTypeRef(TypeRef* t);
     std::shared_ptr<FuncSig> sigOf(FuncDecl* f);
 
-    // Ámbitos
     void beginScope(int startOffset);
     void endScope(BlockStmt* block, int endOffset);
     int declareLocal(const std::string& name, SrcLoc loc, SymKind kind, TypeP type, DeclKind dk = DeclKind::Var, bool hidden = false);
@@ -249,7 +240,6 @@ private:
     bool resolveThis(Resolution& res);
     void popScopeLocals(std::vector<LocalInfo>* out);
 
-    // Recorrido
     void function(FuncDecl* f, ClassInfo* cls);
     void stmt(Stmt* s);
     void block(BlockStmt* b, bool newScope = true);
@@ -268,4 +258,4 @@ private:
     void reportUnused(LocalVar& lv);
 };
 
-} // namespace hz
+}

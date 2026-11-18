@@ -26,6 +26,16 @@ Tok keywordKind(std::string_view word) {
 
 bool isKeyword(Tok t) { return t >= Tok::KwVar; }
 
+void applyContextualKeywords(std::vector<Token>& toks) {
+    for (size_t i = 0; i + 2 < toks.size(); i++) {
+        Token& t = toks[i];
+        if (t.kind != Tok::Ident || t.text != "fn") continue;
+        const Token& name = toks[i + 1];
+        const Token& open = toks[i + 2];
+        if (name.kind == Tok::Ident && !name.newlineBefore && open.kind == Tok::LParen && !open.newlineBefore) t.kind = Tok::KwFunction;
+    }
+}
+
 const char* tokName(Tok t) {
     switch (t) {
         case Tok::Eof: return "fin del archivo";
@@ -92,9 +102,7 @@ const char* tokName(Tok t) {
 
 Lexer::Lexer(std::string_view source, DiagnosticBag& d, SrcLoc base) : src(source), diags(d) {
     if (base.line > 0) { line = base.line; col = base.col; baseOffset = base.offset; }
-    // Saltar BOM UTF-8
     if (src.size() >= 3 && (unsigned char)src[0] == 0xEF && (unsigned char)src[1] == 0xBB && (unsigned char)src[2] == 0xBF) pos = 3;
-    // "#!/usr/bin/env hyper" en la primera línea (scripts ejecutables en Linux y macOS): se ignora
     if (base.line <= 0 && src.compare(pos, 2, "#!") == 0) {
         while (pos < src.size() && src[pos] != '\n') pos++;
     }
@@ -210,7 +218,7 @@ Token Lexer::identifier(SrcLoc start) {
 
 bool Lexer::readEscape(std::string& out) {
     SrcLoc l = here();
-    advance(); // '\'
+    advance();
     if (pos >= src.size()) return false;
     char c = advance();
     switch (c) {
@@ -241,9 +249,6 @@ bool Lexer::readEscape(std::string& out) {
     return true;
 }
 
-// "${precio:.2f}": el formato va al final, detrás de ':' (como en Python). Ese ':' cuenta si está fuera de
-// paréntesis, corchetes, llaves y textos, no hay antes un '?' de condición (a ? b : c) y lo que sigue es
-// un formato válido: [[relleno]alineación][+][0][ancho][, o _][.precisión][tipo]
 static bool isFormatSpec(const std::string& s) {
     auto isAlign = [](char c) { return c == '<' || c == '>' || c == '^'; };
     size_t n = s.size(), i = 0;
@@ -279,7 +284,7 @@ static bool splitFormatSpec(std::string& code, std::string& spec) {
         if (c == '(' || c == '[' || c == '{') depth++;
         else if (c == ')' || c == ']' || c == '}') depth--;
         else if (depth == 0 && c == '?') {
-            if (i + 1 < code.size() && (code[i + 1] == '?' || code[i + 1] == '.')) { i++; continue; } // ?? y ?.
+            if (i + 1 < code.size() && (code[i + 1] == '?' || code[i + 1] == '.')) { i++; continue; }
             ternary = true;
         } else if (depth == 0 && c == ':' && !ternary) colon = i;
     }
@@ -306,7 +311,7 @@ Token Lexer::string(SrcLoc start, char quote, bool raw) {
             if (c == quote) { advance(); closed = true; break; }
             if (c == '\n') break;
         }
-        if (raw) { cur += advance(); continue; } // r"..." : todo literal (útil en expresiones regulares y rutas)
+        if (raw) { cur += advance(); continue; }
         if (c == '\\') { if (!readEscape(cur)) break; continue; }
         if (c == '$' && peek(1) == '{') {
             interpolated = true;
@@ -331,7 +336,7 @@ Token Lexer::string(SrcLoc start, char quote, bool raw) {
             }
             if (depth != 0) { diags.error(exprLoc, "Interpolación ${...} sin cerrar", "añade '}'", "E0004"); break; }
             std::string code(src.substr(s, pos - s));
-            advance(); // '}'
+            advance();
             std::string spec;
             splitFormatSpec(code, spec);
             if (trim(code).empty()) diags.error(exprLoc, "Interpolación vacía ${}", "", "E0004");
@@ -401,7 +406,6 @@ std::vector<Token> Lexer::tokenize() {
             default: break;
         }
         if (k == Tok::Error) {
-            // Avanzar el resto de un carácter UTF-8 inválido
             while (pos < src.size() && ((unsigned char)peek() & 0xC0) == 0x80) advance();
             Token t = make(Tok::Error, start);
             diags.error(t.loc, "Carácter inesperado '" + t.text + "'", "", "E0006");
@@ -412,4 +416,4 @@ std::vector<Token> Lexer::tokenize() {
     return out;
 }
 
-} // namespace hz
+}

@@ -43,6 +43,5 @@ HyperEZ quiere ser un lenguaje **universal y en español**: fácil para aprender
 - Gestor de paquetes (`hyper add paquete`) con un registro público.
 - Más tipos de proyecto en `hyper new` (web, biblioteca) y plantillas de la comunidad.
 - HyperEZ Editor también en Linux y macOS, con pestañas y depurador paso a paso.
-- Documentación en línea con un área de pruebas en el navegador (HyperEZ compilado a WebAssembly).
 
 ¿Echas algo en falta? Propónlo en las [incidencias](https://github.com/cuevacaravacaadrian/HyperEZ/issues/new/choose).

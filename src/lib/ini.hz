@@ -1,11 +1,3 @@
-// ini — archivos de configuración .ini / .cfg: [secciones] y clave = valor.
-//
-//   import ini
-//   var ajustes = ini.parse("[pantalla]\nancho = 800\ncompleta = no\n\n[jugador]\nnombre = Ana")
-//   print(ajustes.pantalla.ancho)           // 800 (los números y sí/no se convierten solos)
-//   ajustes.jugador.nombre = "Luis"
-//   ini.save("ajustes.ini", ajustes)
-
 /// Convierte un valor de texto: números, true/false, sí/no; el resto queda como texto (sin comillas).
 function value(t: text): any {
     var v = t.trim()
@@ -41,7 +33,6 @@ function parse(texto: text, convertir: bool = true): map {
         if i < 0 { throw Error("ini: se esperaba 'clave = valor' en la línea ${n}") }
         var clave = l.substring(0, i).trim()
         var bruto = l.substring(i + 1)
-        // comentario al final de la línea (fuera de comillas)
         var sc = bruto.indexOf(" ;")
         if sc >= 0 and not bruto.trim().startsWith("\"") { bruto = bruto.substring(0, sc) }
         out[actual][clave] = convertir ? value(bruto) : bruto.trim()

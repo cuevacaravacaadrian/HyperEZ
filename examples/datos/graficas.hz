@@ -1,5 +1,3 @@
-// Gráficas SVG (se abren con cualquier navegador): barras, líneas y tarta a partir de datos.
-// Las imágenes se guardan en la carpeta temporal; con --abrir se abren en el navegador.
 import svg
 import stats
 
